@@ -21,7 +21,7 @@ _lock = threading.Lock()
 
 def _default_config() -> dict:
     return {
-        "active_provider": "openai",
+        "active_provider": "mistral",
         # Токен, который приложение шлёт в заголовке Authorization: Bearer <token>
         "api_token": secrets.token_urlsafe(24),
         "providers": {

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Voice-to-Messenger</string>
+    <string name="bubble_channel_name">Кнопка записи</string>
+    <string name="bubble_notification_title">Пузырь активен</string>
+    <string name="bubble_notification_text">Нажми на кнопку поверх экрана, чтобы надиктовать сообщение</string>
+</resources>

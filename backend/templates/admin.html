@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice-to-Messenger — настройки</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #0f1115; color: #e6e8ec; }
+  header { padding: 18px 22px; border-bottom: 1px solid #262a33; display: flex;
+           align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 22px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+  .tabs button { background: #1a1d24; color: #c3c7cf; border: 1px solid #262a33; border-radius: 8px;
+                 padding: 8px 14px; cursor: pointer; font-size: 14px; }
+  .tabs button.active { background: #2b6cff; color: #fff; border-color: #2b6cff; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: #161922; border: 1px solid #262a33; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  label { display: block; font-size: 13px; color: #9aa0ab; margin: 10px 0 4px; }
+  input, textarea, select { width: 100%; background: #0f1115; color: #e6e8ec; border: 1px solid #2b303b;
+                            border-radius: 8px; padding: 9px 11px; font: inherit; }
+  textarea { min-height: 90px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn { background: #2b6cff; color: #fff; border: none; border-radius: 8px; padding: 10px 18px;
+         font-size: 14px; cursor: pointer; }
+  .btn.secondary { background: #262a33; }
+  .btn.small { padding: 5px 10px; font-size: 13px; }
+  .muted { color: #7a8089; font-size: 13px; }
+  .prov-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+           background: #1f7a3d; color: #fff; padding: 10px 18px; border-radius: 8px; opacity: 0;
+           transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  code { background: #0f1115; padding: 2px 6px; border-radius: 5px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎙️ Voice-to-Messenger — настройки</h1>
+  <button class="btn" onclick="saveAll()">Сохранить</button>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <button data-tab="providers" class="active">Провайдеры</button>
+    <button data-tab="asr">Распознавание</button>
+    <button data-tab="prompt">Системный промпт</button>
+    <button data-tab="styles">Стили</button>
+    <button data-tab="languages">Языки</button>
+    <button data-tab="app">Приложение</button>
+  </div>
+
+  <div id="providers" class="panel active">
+    <div class="card">
+      <label>Активный провайдер</label>
+      <select id="active_provider"></select>
+      <p class="muted">Модель для генерации текста берётся из настроек выбранного провайдера.</p>
+    </div>
+    <div id="providers_list"></div>
+    <button class="btn secondary" onclick="addProvider()">+ Добавить провайдера</button>
+  </div>
+
+  <div id="asr" class="panel">
+    <div class="card">
+      <p class="muted">Серверное распознавание речи (Whisper-совместимый эндпoint). Язык определяется
+        автоматически — хорошо для смешанной RU+DE речи.</p>
+      <label>Провайдер для ASR (чей ключ/base_url использовать)</label>
+      <select id="asr_provider"></select>
+      <label>Модель распознавания</label>
+      <input id="asr_model" placeholder="whisper-1">
+    </div>
+  </div>
+
+  <div id="prompt" class="panel">
+    <div class="card">
+      <label>Базовый системный промпт (главное правило: вернуть только чистый текст)</label>
+      <textarea id="base_prompt" style="min-height: 260px;"></textarea>
+    </div>
+  </div>
+
+  <div id="styles" class="panel">
+    <div id="styles_list"></div>
+    <button class="btn secondary" onclick="addStyle()">+ Добавить стиль</button>
+  </div>
+
+  <div id="languages" class="panel">
+    <div id="languages_list"></div>
+    <button class="btn secondary" onclick="addLanguage()">+ Добавить язык</button>
+  </div>
+
+  <div id="app" class="panel">
+    <div class="card">
+      <label>API-токен (вставь его в приложение, поле «токен сервера»)</label>
+      <input id="api_token">
+      <p class="muted" style="margin-top:10px;">Приложение шлёт его в заголовке
+        <code>Authorization: Bearer &lt;токен&gt;</code>. Смени — и старые устройства перестанут иметь доступ.</p>
+      <button class="btn secondary small" style="margin-top:8px;" onclick="regenToken()">Сгенерировать новый</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast">Сохранено</div>
+
+<script>
+let CFG = null;
+
+function esc(s) { return (s || "").replace(/"/g, "&quot;"); }
+
+document.querySelectorAll(".tabs button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById(b.dataset.tab).classList.add("active");
+  };
+});
+
+async function load() {
+  const r = await fetch("/admin/api/config");
+  CFG = await r.json();
+  render();
+}
+
+function render() {
+  // Провайдеры
+  const list = document.getElementById("providers_list");
+  list.innerHTML = "";
+  for (const [key, p] of Object.entries(CFG.providers)) {
+    list.appendChild(providerCard(key, p));
+  }
+  refreshProviderSelects();
+
+  // ASR
+  document.getElementById("asr_model").value = CFG.asr?.model || "";
+
+  // Промпт
+  document.getElementById("base_prompt").value = CFG.base_prompt || "";
+
+  // Стили
+  const sl = document.getElementById("styles_list");
+  sl.innerHTML = "";
+  CFG.styles.forEach((s, i) => sl.appendChild(styleCard(s, i)));
+
+  // Языки
+  const ll = document.getElementById("languages_list");
+  ll.innerHTML = "";
+  CFG.languages.forEach((l, i) => ll.appendChild(languageCard(l, i)));
+
+  // Приложение
+  document.getElementById("api_token").value = CFG.api_token || "";
+}
+
+function refreshProviderSelects() {
+  const keys = Object.keys(CFG.providers);
+  for (const [id, cur] of [["active_provider", CFG.active_provider], ["asr_provider", CFG.asr?.provider]]) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = keys.map(k =>
+      `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(CFG.providers[k].label || k)}</option>`
+    ).join("");
+  }
+}
+
+function providerCard(key, p) {
+  const d = document.createElement("div");
+  d.className = "card";
+  d.dataset.key = key;
+  d.innerHTML = `
+    <div class="prov-head">
+      <strong>${esc(key)}</strong>
+      <button class="btn secondary small" onclick="this.closest('.card').remove()">Удалить</button>
+    </div>
+    <div class="row">
+      <div><label>Название</label><input class="p-label" value="${esc(p.label)}"></div>
+      <div><label>Модель</label><input class="p-model" value="${esc(p.model)}"></div>
+    </div>
+    <label>Base URL</label><input class="p-base" value="${esc(p.base_url)}">
+    <label>API-ключ</label><input class="p-key" type="password" value="${esc(p.api_key)}" placeholder="sk-...">
+  `;
+  return d;
+}
+
+function styleCard(s, i) {
+  const d = document.createElement("div");
+  d.className = "card";
+  d.innerHTML = `
+    <div class="prov-head">
+      <div class="row" style="flex:1;">
+        <div><label>ID</label><input class="s-id" value="${esc(s.id)}"></div>
+        <div><label>Название (в приложении)</label><input class="s-name" value="${esc(s.name)}"></div>
+      </div>
+      <button class="btn secondary small" onclick="this.closest('.card').remove()">✕</button>
+    </div>
+    <label>Промпт стиля</label><textarea class="s-prompt">${(s.prompt || "")}</textarea>
+  `;
+  return d;
+}
+
+function languageCard(l, i) {
+  const d = document.createElement("div");
+  d.className = "card";
+  d.innerHTML = `
+    <div class="prov-head">
+      <div class="row" style="flex:1;">
+        <div><label>Код</label><input class="l-code" value="${esc(l.code)}"></div>
+        <div><label>Название</label><input class="l-name" value="${esc(l.name)}"></div>
+      </div>
+      <button class="btn secondary small" onclick="this.closest('.card').remove()">✕</button>
+    </div>
+  `;
+  return d;
+}
+
+function addProvider() {
+  const key = prompt("Ключ нового провайдера (латиницей, напр. bedrock):");
+  if (!key) return;
+  CFG.providers[key] = { label: key, base_url: "", api_key: "", model: "" };
+  render();
+}
+function addStyle() { CFG.styles.push({ id: "", name: "", prompt: "" }); render(); }
+function addLanguage() { CFG.languages.push({ code: "", name: "" }); render(); }
+function regenToken() {
+  const a = new Uint8Array(24); crypto.getRandomValues(a);
+  document.getElementById("api_token").value = btoa(String.fromCharCode(...a))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function collect() {
+  const providers = {};
+  document.querySelectorAll("#providers_list .card").forEach(c => {
+    providers[c.dataset.key] = {
+      label: c.querySelector(".p-label").value.trim(),
+      model: c.querySelector(".p-model").value.trim(),
+      base_url: c.querySelector(".p-base").value.trim(),
+      api_key: c.querySelector(".p-key").value,
+    };
+  });
+  const styles = [...document.querySelectorAll("#styles_list .card")].map(c => ({
+    id: c.querySelector(".s-id").value.trim(),
+    name: c.querySelector(".s-name").value.trim(),
+    prompt: c.querySelector(".s-prompt").value.trim(),
+  })).filter(s => s.id);
+  const languages = [...document.querySelectorAll("#languages_list .card")].map(c => ({
+    code: c.querySelector(".l-code").value.trim(),
+    name: c.querySelector(".l-name").value.trim(),
+  })).filter(l => l.code);
+
+  return {
+    active_provider: document.getElementById("active_provider").value,
+    api_token: document.getElementById("api_token").value.trim(),
+    providers,
+    asr: {
+      provider: document.getElementById("asr_provider").value,
+      model: document.getElementById("asr_model").value.trim() || "whisper-1",
+    },
+    base_prompt: document.getElementById("base_prompt").value,
+    styles,
+    languages,
+  };
+}
+
+async function saveAll() {
+  const body = collect();
+  const r = await fetch("/admin/api/config", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (r.ok) { CFG = body; toast("Сохранено"); }
+  else { toast("Ошибка сохранения"); }
+}
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+load();
+</script>
+</body>
+</html>

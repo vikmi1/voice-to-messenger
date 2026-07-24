@@ -60,6 +60,14 @@ def require_token(view):
     return wrapper
 
 
+def resolve_api_key(name: str, prov: dict) -> str:
+    """Ключ из конфига, а если пуст — из переменной окружения <ПРОВАЙДЕР>_API_KEY.
+
+    Позволяет держать ключи в .env (не попадает в git), а не только в базе.
+    """
+    return prov.get("api_key") or os.environ.get(f"{name.upper()}_API_KEY", "")
+
+
 # --- Публичные эндпоинты для приложения ------------------------------------
 
 @app.get("/")
@@ -83,7 +91,8 @@ def api_process():
     system = build_system(cfg["base_prompt"], style_prompt, target, lang_name)
 
     prov = cfg["providers"][cfg["active_provider"]]
-    provider = OpenAICompatibleProvider(prov["base_url"], prov["api_key"], prov["model"])
+    api_key = resolve_api_key(cfg["active_provider"], prov)
+    provider = OpenAICompatibleProvider(prov["base_url"], api_key, prov["model"])
 
     def generate():
         try:
@@ -104,13 +113,14 @@ def api_transcribe():
     audio = request.files["file"]
 
     asr = cfg.get("asr", {})
-    prov = cfg["providers"].get(asr.get("provider", cfg["active_provider"]))
+    asr_name = asr.get("provider", cfg["active_provider"])
+    prov = cfg["providers"].get(asr_name)
     if not prov:
         return jsonify(error="asr provider not configured"), 400
 
     try:
         text = transcribe_audio(
-            prov["base_url"], prov["api_key"], asr.get("model", "whisper-1"),
+            prov["base_url"], resolve_api_key(asr_name, prov), asr.get("model", "whisper-1"),
             audio.read(), filename=audio.filename or "audio.m4a",
             content_type=audio.mimetype or "audio/m4a",
         )

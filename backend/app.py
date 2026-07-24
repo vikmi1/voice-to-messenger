@@ -3,6 +3,7 @@
 Эндпоинты:
   GET  /                  — health-check
   POST /api/process       — текст → чистое сообщение (стриминг), Bearer-токен
+  GET  /api/options       — стили и языки для приложения, Bearer-токен
   POST /api/transcribe    — аудио → сырой текст (Whisper), Bearer-токен
   GET  /admin             — админ-панель (Basic Auth)
   GET  /admin/api/config  — текущая конфигурация (Basic Auth)
@@ -102,6 +103,17 @@ def api_process():
             yield f"\n[Ошибка обработки: {exc}]"
 
     return Response(generate(), mimetype="text/plain; charset=utf-8")
+
+
+@app.get("/api/options")
+@require_token
+def api_options():
+    """Стили и языки для приложения — чтобы правки в панели не требовали пересборки APK."""
+    cfg = request.cfg
+    return jsonify(
+        styles=[{"id": s["id"], "name": s["name"]} for s in cfg["styles"]],
+        languages=[{"code": l["code"], "name": l["name"]} for l in cfg["languages"]],
+    )
 
 
 @app.post("/api/transcribe")

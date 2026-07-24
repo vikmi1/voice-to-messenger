@@ -1,0 +1,15 @@
+# Сайт voiceapp для прод-Caddy. Копируется в conf.d Caddy briefgenerator:
+#   /opt/briefgenerator/deploy/conf.d/voiceapp.caddy
+# Проксирует на контейнер voiceapp (/opt/voiceapp). Авто-HTTPS (Let's Encrypt).
+voiceapp.aithinglab.com {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy voiceapp:8000 {
+		# Ответ LLM отдаётся токен-за-токеном — без буферизации прокси.
+		flush_interval -1
+		transport http {
+			response_header_timeout 180s
+		}
+	}
+}

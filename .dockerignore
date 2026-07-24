@@ -1,0 +1,9 @@
+backend/venv/
+backend/.env
+backend/*.sqlite3
+**/__pycache__/
+**/*.pyc
+.git/
+android/
+deploy/
+*.md

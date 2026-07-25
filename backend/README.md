@@ -46,8 +46,15 @@ python app.py
 | OpenAI-совместимый | OpenAI, Mistral, Groq, Ollama, LM Studio… | `POST {base_url}/chat/completions`, `Authorization: Bearer` |
 | Anthropic (Claude) | Anthropic | `POST {base_url}/messages`, `x-api-key` + `anthropic-version`, `system` отдельным полем |
 
+Простое правило: **Anthropic → тип Anthropic; всё остальное (OpenAI, Mistral,
+локальные) → OpenAI-совместимый.**
+
 Ключи можно не хранить в базе: если поле «API-ключ» пустое, бэкенд возьмёт
 `<ПРОВАЙДЕР>_API_KEY` из окружения (например `ANTHROPIC_API_KEY`).
+
+Параметр `temperature` для Anthropic не отправляется: у моделей Claude 5+ он
+устарел и вызывает `400 temperature is deprecated for this model`. OpenAI-совместимые
+провайдеры по-прежнему используют `temperature=0.3`.
 
 Серверное распознавание речи работает только через OpenAI-совместимый
 `/audio/transcriptions` — у Anthropic такого эндпоинта нет.

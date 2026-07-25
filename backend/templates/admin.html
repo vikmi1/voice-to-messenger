@@ -67,8 +67,10 @@
 
   <div id="asr" class="panel">
     <div class="card">
-      <p class="muted">Серверное распознавание речи (Whisper-совместимый эндпoint). Язык определяется
-        автоматически — хорошо для смешанной RU+DE речи.</p>
+      <p class="muted">Серверное распознавание речи (Whisper-совместимый эндпoint
+        <code>/audio/transcriptions</code>). Язык определяется автоматически — хорошо для
+        смешанной RU+DE речи. Anthropic сюда не годится: у него нет API распознавания речи,
+        поэтому в списке только OpenAI-совместимые провайдеры.</p>
       <label>Провайдер для ASR (чей ключ/base_url использовать)</label>
       <select id="asr_provider"></select>
       <label>Модель распознавания</label>
@@ -192,14 +194,18 @@ function render() {
 
 function refreshProviderSelects() {
   const keys = Object.keys(CFG.providers);
-  for (const [id, cur] of [
-    ["active_provider", CFG.active_provider],
-    ["asr_provider", CFG.asr?.provider],
-    ["test_provider", CFG.active_provider],
+  // У Anthropic нет эндпоинта транскрипции — в списке ASR его быть не должно.
+  const asrKeys = keys.filter(k => (CFG.providers[k].kind || "openai") !== "anthropic");
+  for (const [id, cur, allowed] of [
+    ["active_provider", CFG.active_provider, keys],
+    ["asr_provider", CFG.asr?.provider, asrKeys],
+    ["test_provider", CFG.active_provider, keys],
   ]) {
+    // Если сохранённый провайдер выпал из списка (сменили тип API) — берём первый доступный.
+    const selected = allowed.includes(cur) ? cur : allowed[0];
     const sel = document.getElementById(id);
-    sel.innerHTML = keys.map(k =>
-      `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(CFG.providers[k].label || k)}</option>`
+    sel.innerHTML = allowed.map(k =>
+      `<option value="${esc(k)}" ${k === selected ? "selected" : ""}>${esc(CFG.providers[k].label || k)}</option>`
     ).join("");
   }
 }
@@ -218,7 +224,7 @@ function providerCard(key, p) {
       <div><label>Название</label><input class="p-label" value="${esc(p.label)}"></div>
       <div>
         <label>Тип API</label>
-        <select class="p-kind">
+        <select class="p-kind" onchange="onKindChange('${esc(key)}', this.value)">
           <option value="openai" ${kind === "openai" ? "selected" : ""}>OpenAI-совместимый</option>
           <option value="anthropic" ${kind === "anthropic" ? "selected" : ""}>Anthropic (Claude)</option>
         </select>
@@ -234,6 +240,20 @@ function providerCard(key, p) {
     <label>API-ключ</label><input class="p-key" type="password" value="${esc(p.api_key)}" placeholder="sk-...">
   `;
   return d;
+}
+
+/** Смена типа API сразу пересобирает список ASR: Anthropic оттуда должен пропасть. */
+function onKindChange(key, kind) {
+  if (!CFG.providers[key]) return;
+  CFG.providers[key].kind = kind;
+  const asr = document.getElementById("asr_provider");
+  const before = asr.value;
+  CFG.asr = CFG.asr || {};
+  CFG.asr.provider = before;
+  refreshProviderSelects();
+  if (asr.value !== before) {
+    toast(`«${key}» не умеет распознавать речь — провайдер ASR переключён на «${asr.value}»`);
+  }
 }
 
 /** Тянет список моделей у самого провайдера — ключ должен быть уже сохранён. */

@@ -116,8 +116,12 @@ class BackendClient(private val settings: SettingsRepository) {
 
     private fun ensureSuccessful(response: Response) {
         if (response.isSuccessful) return
+        // Бэкенд объясняет причину в поле error — оно понятнее, чем голый код ответа.
+        val explained = runCatching {
+            JSONObject(response.body?.string().orEmpty()).optString("error").takeIf { it.isNotBlank() }
+        }.getOrNull()
         throw BackendException(
-            when (response.code) {
+            explained ?: when (response.code) {
                 401 -> "Сервер отклонил токен — проверь API-токен в настройках"
                 404 -> "Эндпоинт не найден — проверь адрес сервера"
                 in 500..599 -> "Ошибка на сервере (${response.code})"

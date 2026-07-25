@@ -5,17 +5,23 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -63,13 +70,6 @@ import com.voicetomessenger.capture.CaptureState
 import com.voicetomessenger.data.Language
 import com.voicetomessenger.data.ProcessingMode
 import com.voicetomessenger.data.Style
-
-/** Быстрые действия из дизайн-документа — это просто пересборка текста другим стилем. */
-private val QUICK_ACTIONS = listOf(
-    "short" to "Короче",
-    "friendly" to "Мягче",
-    "business" to "Деловее",
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -242,6 +242,7 @@ private fun statusText(capture: CaptureState): String = when (capture) {
     is CaptureState.Failed -> "Не получилось"
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StyleRow(
     styles: List<Style>,
@@ -252,11 +253,11 @@ private fun StyleRow(
     if (styles.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Стиль", style = MaterialTheme.typography.labelLarge)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+        // FlowRow, а не горизонтальная прокрутка: иначе последние чипы уезжают за край незаметно.
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             styles.forEach { style ->
                 FilterChip(
@@ -277,6 +278,7 @@ private fun StyleRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LanguageRow(
     languages: List<Language>,
@@ -287,11 +289,10 @@ private fun LanguageRow(
     if (languages.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Перевод", style = MaterialTheme.typography.labelLarge)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             languages.forEach { language ->
                 FilterChip(
@@ -305,6 +306,7 @@ private fun LanguageRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun ResultBlock(
     text: String,
@@ -315,6 +317,15 @@ private fun ResultBlock(
     val context = LocalContext.current
     var showRaw by remember { mutableStateOf(false) }
 
+    // Клавиатура перекрывала поле: держим его в видимой части экрана, пока в нём правят текст.
+    val bringIntoView = remember { BringIntoViewRequester() }
+    var editing by remember { mutableStateOf(false) }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(editing, imeVisible) {
+        // Ждём, пока клавиатура доедет: до этого видимая высота ещё старая.
+        if (editing) bringIntoView.bringIntoView()
+    }
+
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = text,
@@ -322,7 +333,12 @@ private fun ResultBlock(
             readOnly = busy,
             label = { Text("Готовое сообщение") },
             minLines = 3,
-            modifier = Modifier.fillMaxWidth(),
+            // Длинное сообщение прокручивается внутри поля, а не растит его под клавиатуру.
+            maxLines = 6,
+            modifier = Modifier
+                .fillMaxWidth()
+                .bringIntoViewRequester(bringIntoView)
+                .onFocusChanged { editing = it.isFocused },
         )
 
         if (busy) {
@@ -361,18 +377,7 @@ private fun ResultBlock(
                 modifier = Modifier.weight(1f),
             ) { Text("В заметки") }
             OutlinedButton(onClick = viewModel::reset, modifier = Modifier.weight(1f)) {
-                Text("Заново")
-            }
-        }
-
-        Text("Быстрая правка", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            QUICK_ACTIONS.forEach { (styleId, label) ->
-                OutlinedButton(
-                    onClick = { viewModel.selectStyle(styleId) },
-                    enabled = !busy,
-                    modifier = Modifier.weight(1f),
-                ) { Text(label) }
+                Text("Новое сообщение")
             }
         }
 

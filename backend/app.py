@@ -172,6 +172,12 @@ def api_transcribe():
     prov = cfg["providers"].get(asr_name)
     if not prov:
         return jsonify(error="asr provider not configured"), 400
+    if prov.get("kind") == "anthropic":
+        # У Anthropic нет /audio/transcriptions — без этой проверки был бы 502 без объяснений.
+        return jsonify(
+            error=f"Провайдер «{asr_name}» (Anthropic) не умеет распознавать речь. "
+                  "Выбери OpenAI-совместимого провайдера на вкладке «Распознавание».",
+        ), 400
 
     file_bytes = audio.read()
     app.logger.info(

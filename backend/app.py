@@ -130,14 +130,22 @@ def api_transcribe():
     if not prov:
         return jsonify(error="asr provider not configured"), 400
 
+    file_bytes = audio.read()
+    app.logger.info(
+        "transcribe: provider=%s model=%s filename=%s mime=%s size=%d",
+        asr_name, asr.get("model", "whisper-1"),
+        audio.filename, audio.mimetype, len(file_bytes),
+    )
     try:
         text = transcribe_audio(
             prov["base_url"], resolve_api_key(asr_name, prov), asr.get("model", "whisper-1"),
-            audio.read(), filename=audio.filename or "audio.m4a",
+            file_bytes, filename=audio.filename or "audio.m4a",
             content_type=audio.mimetype or "audio/m4a",
         )
     except Exception as exc:  # noqa: BLE001
+        app.logger.error("transcribe error: %s", exc, exc_info=True)
         return jsonify(error=str(exc)), 502
+    app.logger.info("transcribe ok: %d chars", len(text))
     return jsonify(text=text)
 
 

@@ -37,6 +37,7 @@ python app.py
 |-------|--------------------|---------------------------------------------|-------------|
 | GET   | `/`                | health-check                                | —           |
 | POST  | `/api/process`     | текст → чистое сообщение (стриминг)         | Bearer      |
+| GET   | `/api/options`     | стили и языки для приложения                | Bearer      |
 | POST  | `/api/transcribe`  | аудио (multipart `file`) → сырой текст      | Bearer      |
 | GET   | `/admin`           | панель настроек                             | Basic       |
 

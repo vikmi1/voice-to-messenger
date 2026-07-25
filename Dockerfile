@@ -19,4 +19,4 @@ EXPOSE 8000
 
 # gthread: стриминг ответа LLM держит воркер занятым на время потока;
 # несколько потоков дают параллельные запросы. timeout > llm-таймаута (120с).
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "gthread", "-w", "2", "--threads", "4", "--timeout", "180", "app:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "gthread", "-w", "2", "--threads", "4", "--timeout", "180", "--access-logfile", "-", "--log-level", "info", "app:app"]

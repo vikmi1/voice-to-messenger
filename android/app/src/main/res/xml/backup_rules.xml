@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Настройки (в том числе API-токен) в бэкап не попадают. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="datastore" />
+</full-backup-content>

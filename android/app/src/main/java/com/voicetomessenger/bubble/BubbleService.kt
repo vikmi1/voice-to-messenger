@@ -18,6 +18,8 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -81,11 +83,21 @@ class BubbleService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            scope.launch { appContainer.settings.setBubbleEnabled(false) }
-            stopSelf()
+            shutDown()
             return START_NOT_STICKY
         }
         return START_STICKY
+    }
+
+    /**
+     * Совсем выключить пузырь — и снять галочку в настройках, иначе он вернётся.
+     *
+     * Настройку пишем в appScope: свой scope умрёт вместе с сервисом на [stopSelf],
+     * а запись в DataStore приостанавливается и не успела бы дойти.
+     */
+    private fun shutDown() {
+        appContainer.appScope.launch { appContainer.settings.setBubbleEnabled(false) }
+        stopSelf()
     }
 
     override fun onDestroy() {
@@ -158,13 +170,13 @@ class BubbleService : Service() {
     // --- Панель результата ------------------------------------------------
 
     private fun render(state: CaptureState) {
+        val recording = state is CaptureState.Listening
         bubbleView?.setBackgroundResource(
-            if (state is CaptureState.Listening) {
-                R.drawable.bubble_recording_background
-            } else {
-                R.drawable.bubble_background
-            },
+            if (recording) R.drawable.bubble_recording_background else R.drawable.bubble_background,
         )
+        // По одному цвету непонятно, что делать дальше — меняем и саму иконку.
+        bubbleView?.findViewById<ImageView>(R.id.bubble_icon)
+            ?.setImageResource(if (recording) R.drawable.ic_stop else R.drawable.ic_mic)
 
         when (state) {
             CaptureState.Idle -> removePanel()
@@ -237,6 +249,7 @@ class BubbleService : Service() {
             }
         }
         view.findViewById<Button>(R.id.panel_close).setOnClickListener { finishSession() }
+        view.findViewById<ImageButton>(R.id.panel_power).setOnClickListener { shutDown() }
 
         return runCatching { windowManager.addView(view, panelParams) }
             .onSuccess { panelView = view }

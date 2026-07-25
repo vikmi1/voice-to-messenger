@@ -4,6 +4,7 @@ import com.voicetomessenger.asr.AudioRecorder
 import com.voicetomessenger.asr.OnDeviceRecognizer
 import com.voicetomessenger.data.AsrMode
 import com.voicetomessenger.data.ProcessingMode
+import com.voicetomessenger.data.Settings
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.net.BackendClient
 import com.voicetomessenger.processing.LocalProcessor
@@ -73,6 +74,23 @@ class VoicePipeline(
     private var lastRaw: String = ""
     private var activeMode: AsrMode = AsrMode.ON_DEVICE
 
+    /**
+     * Готовые тексты за текущую сессию диктовки.
+     *
+     * Перебор стилей и языков — главный источник лишних обращений к LLM: пользователь
+     * переключает чипы туда-сюда, и каждый тап стоил бы отдельной генерации. Уже
+     * посчитанный вариант достаём из памяти, пока не началась новая запись.
+     */
+    private val results = mutableMapOf<ResultKey, String>()
+    private var currentKey: ResultKey? = null
+
+    private data class ResultKey(
+        val raw: String,
+        val styleId: String,
+        val targetLang: String,
+        val processingMode: ProcessingMode,
+    )
+
     val isCapturing: Boolean
         get() = _state.value is CaptureState.Listening
 
@@ -89,6 +107,7 @@ class VoicePipeline(
         if (isCapturing) return
         captureJob?.cancel()
         processJob?.cancel()
+        forgetResults()
         _state.value = CaptureState.Listening()
 
         captureJob = scope.launch(Dispatchers.Main.immediate) {
@@ -137,6 +156,18 @@ class VoicePipeline(
         processJob?.cancel()
         processJob = scope.launch(Dispatchers.Main.immediate) {
             styleId?.let { settings.setStyle(it) }
+
+            val key = keyFor(raw, settings.current())
+            val ready = results[key]
+            if (ready != null) {
+                currentKey = key
+                _state.value = CaptureState.Done(raw, ready)
+                return@launch
+            }
+
+            // Пока пользователь перебирает чипы, запрос не уходит: следующий вызов
+            // отменит этот job раньше, чем истечёт задержка.
+            delay(REPROCESS_DEBOUNCE_MS)
             runProcessing(raw)
         }
     }
@@ -144,7 +175,11 @@ class VoicePipeline(
     /** Правки пользователя в готовом тексте. */
     fun editResult(text: String) {
         val current = _state.value
-        if (current is CaptureState.Done) _state.value = current.copy(text = text)
+        if (current !is CaptureState.Done) return
+        _state.value = current.copy(text = text)
+        // Правку помним вместе с вариантом: вернувшись к этому стилю, пользователь
+        // увидит свой текст, а не исходную генерацию.
+        currentKey?.let { results[it] = text }
     }
 
     fun reset() {
@@ -155,7 +190,14 @@ class VoicePipeline(
         recognizer.cancel()
         recorder.cancel()
         lastRaw = ""
+        forgetResults()
         _state.value = CaptureState.Idle
+    }
+
+    /** Новая диктовка — прошлые варианты уже не пригодятся. */
+    private fun forgetResults() {
+        results.clear()
+        currentKey = null
     }
 
     fun release() {
@@ -224,6 +266,14 @@ class VoicePipeline(
     private suspend fun runProcessing(raw: String) {
         lastRaw = raw
         val current = settings.current()
+        val key = keyFor(raw, current)
+        currentKey = key
+
+        results[key]?.let { ready ->
+            _state.value = CaptureState.Done(raw, ready)
+            return
+        }
+
         val processor = when (current.processingMode) {
             ProcessingMode.SERVER -> ServerProcessor(backend)
             ProcessingMode.LOCAL -> LocalProcessor()
@@ -247,9 +297,13 @@ class VoicePipeline(
         _state.value = if (result.isEmpty()) {
             CaptureState.Failed("Сервер вернул пустой ответ")
         } else {
+            results[key] = result
             CaptureState.Done(raw, result)
         }
     }
+
+    private fun keyFor(raw: String, settings: Settings) =
+        ResultKey(raw, settings.styleId, settings.targetLang, settings.processingMode)
 
     private fun updateListening(transform: (CaptureState.Listening) -> CaptureState.Listening) {
         val current = _state.value
@@ -258,5 +312,8 @@ class VoicePipeline(
 
     private companion object {
         const val LEVEL_POLL_MS = 100L
+
+        /** Пауза перед запросом, чтобы быстрый перебор чипов не улетал на сервер целиком. */
+        const val REPROCESS_DEBOUNCE_MS = 350L
     }
 }

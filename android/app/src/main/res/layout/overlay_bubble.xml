@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/bubble_root"
-    android:layout_width="56dp"
-    android:layout_height="56dp"
+    android:layout_width="72dp"
+    android:layout_height="72dp"
     android:background="@drawable/bubble_background"
     android:contentDescription="@string/bubble_notification_title"
     android:elevation="6dp">
 
     <ImageView
         android:id="@+id/bubble_icon"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
         android:layout_gravity="center"
         android:importantForAccessibility="no"
         android:src="@drawable/ic_mic"

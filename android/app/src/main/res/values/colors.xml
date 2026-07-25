@@ -2,4 +2,6 @@
 <resources>
     <color name="ic_launcher_background">#1F6FEB</color>
     <color name="bubble_tint">#FFFFFF</color>
+    <color name="panel_close_background">#EEEEEE</color>
+    <color name="panel_close_tint">#5F6368</color>
 </resources>

@@ -11,9 +11,17 @@ import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.net.AdminClient
 import com.voicetomessenger.net.BackendClient
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /** Ручной DI: зависимостей мало, отдельная библиотека тут была бы лишней. */
 class AppContainer(private val context: Context) {
+
+    /**
+     * Живёт столько же, сколько процесс. Нужен для записей, которые обязаны дойти,
+     * даже если тот, кто их начал, уже закрывается — например, сервис пузыря, гасящий сам себя.
+     */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val settings = SettingsRepository(context)
     val backend = BackendClient(settings)

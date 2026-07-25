@@ -4,4 +4,5 @@
     <string name="bubble_channel_name">Кнопка записи</string>
     <string name="bubble_notification_title">Пузырь активен</string>
     <string name="bubble_notification_text">Нажми на кнопку поверх экрана, чтобы надиктовать сообщение</string>
+    <string name="bubble_stop">Выключить</string>
 </resources>

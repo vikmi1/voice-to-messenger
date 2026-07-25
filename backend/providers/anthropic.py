@@ -28,11 +28,13 @@ def _headers(api_key: str) -> dict:
 
 
 class AnthropicProvider(LlmProvider):
-    def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.3,
+    def __init__(self, base_url: str, api_key: str, model: str, temperature: float | None = None,
                  max_tokens: int = DEFAULT_MAX_TOKENS):
         self.base_url = (base_url or "https://api.anthropic.com/v1").rstrip("/")
         self.api_key = api_key or ""
         self.model = model
+        # У части моделей (Claude 5+) temperature устарел и вызывает 400 —
+        # по умолчанию не шлём его вовсе; задаётся только явно.
         self.temperature = temperature
         self.max_tokens = max_tokens
 
@@ -43,11 +45,12 @@ class AnthropicProvider(LlmProvider):
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
             "system": system,
             "messages": [{"role": "user", "content": user}],
             "stream": True,
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
 
         with requests.post(f"{self.base_url}/messages", headers=_headers(self.api_key),
                            json=payload, stream=True, timeout=120) as resp:

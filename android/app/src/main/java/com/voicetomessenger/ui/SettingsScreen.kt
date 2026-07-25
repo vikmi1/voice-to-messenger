@@ -14,9 +14,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -100,6 +102,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        contentWindowInsets = WindowInsets.safeDrawing,
     ) { innerPadding ->
         Column(
             modifier = Modifier

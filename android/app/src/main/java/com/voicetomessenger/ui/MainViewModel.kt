@@ -48,6 +48,12 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     fun onMicClick() = pipeline.toggle()
 
+    fun pauseCapture() = pipeline.pause()
+
+    fun resumeCapture() = pipeline.resume()
+
+    fun stopCapture() = pipeline.stop()
+
     fun reset() = pipeline.reset()
 
     fun editResult(text: String) = pipeline.editResult(text)

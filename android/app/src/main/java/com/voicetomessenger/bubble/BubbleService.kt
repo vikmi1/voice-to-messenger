@@ -170,7 +170,11 @@ class BubbleService : Service() {
             CaptureState.Idle -> removePanel()
 
             is CaptureState.Listening -> showPanel(
-                status = "Слушаю… нажми на кнопку, чтобы закончить",
+                status = if (state.paused) {
+                    "Пауза — нажми на кнопку, чтобы продолжить"
+                } else {
+                    "Слушаю… нажми на кнопку, чтобы закончить"
+                },
                 text = state.partial,
                 actionsEnabled = false,
             )

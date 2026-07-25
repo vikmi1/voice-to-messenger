@@ -15,9 +15,13 @@ class AudioRecorder(private val context: Context) {
 
     private var recorder: MediaRecorder? = null
     private var output: File? = null
+    private var paused = false
 
     val isRecording: Boolean
         get() = recorder != null
+
+    val isPaused: Boolean
+        get() = paused
 
     /** @return true, если запись пошла. */
     fun start(): Boolean {
@@ -43,6 +47,7 @@ class AudioRecorder(private val context: Context) {
             }
             recorder = instance
             output = file
+            paused = false
             true
         }.getOrElse {
             runCatching { instance.release() }
@@ -51,10 +56,37 @@ class AudioRecorder(private val context: Context) {
         }
     }
 
+    /**
+     * Пауза записи. Пишем в один файл, поэтому склейка кусков не нужна.
+     *
+     * @return true, если запись действительно встала на паузу.
+     */
+    fun pause(): Boolean {
+        val instance = recorder ?: return false
+        if (paused) return true
+        return runCatching {
+            instance.pause()
+            paused = true
+            true
+        }.getOrDefault(false)
+    }
+
+    /** @return true, если запись продолжилась. */
+    fun resume(): Boolean {
+        val instance = recorder ?: return false
+        if (!paused) return true
+        return runCatching {
+            instance.resume()
+            paused = false
+            true
+        }.getOrDefault(false)
+    }
+
     /** @return записанный файл или null, если запись не удалась (например, слишком короткая). */
     fun stop(): File? {
         val instance = recorder ?: return null
         recorder = null
+        paused = false
         val file = output
         output = null
 
@@ -70,6 +102,7 @@ class AudioRecorder(private val context: Context) {
     fun cancel() {
         val instance = recorder ?: return
         recorder = null
+        paused = false
         runCatching { instance.stop() }
         runCatching { instance.release() }
         output?.delete()
@@ -79,6 +112,7 @@ class AudioRecorder(private val context: Context) {
     /** Текущая громкость 0..1 для индикатора записи. */
     fun level(): Float {
         val instance = recorder ?: return 0f
+        if (paused) return 0f
         val amplitude = runCatching { instance.maxAmplitude }.getOrDefault(0)
         return (amplitude / 12_000f).coerceIn(0f, 1f)
     }

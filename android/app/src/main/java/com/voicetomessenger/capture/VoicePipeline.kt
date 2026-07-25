@@ -27,8 +27,18 @@ import kotlinx.coroutines.withContext
 sealed interface CaptureState {
     data object Idle : CaptureState
 
-    /** Идёт запись: [partial] — гипотеза распознавания, [level] — громкость 0..1. */
-    data class Listening(val partial: String = "", val level: Float = 0f) : CaptureState
+    /**
+     * Идёт запись: [partial] — гипотеза распознавания, [level] — громкость 0..1.
+     *
+     * [canPause] верно только для серверного распознавания: там пишется файл и
+     * `MediaRecorder` умеет паузу. Системный `SpeechRecognizer` паузы не поддерживает.
+     */
+    data class Listening(
+        val partial: String = "",
+        val level: Float = 0f,
+        val paused: Boolean = false,
+        val canPause: Boolean = false,
+    ) : CaptureState
 
     /** Аудио ушло на серверный Whisper. */
     data object Transcribing : CaptureState
@@ -66,7 +76,14 @@ class VoicePipeline(
     val isCapturing: Boolean
         get() = _state.value is CaptureState.Listening
 
-    fun toggle() = if (isCapturing) stop() else start()
+    private val isPaused: Boolean
+        get() = (_state.value as? CaptureState.Listening)?.paused == true
+
+    fun toggle() = when {
+        !isCapturing -> start()
+        isPaused -> resume()
+        else -> stop()
+    }
 
     fun start() {
         if (isCapturing) return
@@ -77,11 +94,27 @@ class VoicePipeline(
         captureJob = scope.launch(Dispatchers.Main.immediate) {
             val current = settings.current()
             activeMode = current.asrMode
+            updateListening { it.copy(canPause = activeMode == AsrMode.SERVER) }
             when (activeMode) {
                 AsrMode.ON_DEVICE -> listenOnDevice(current.asrLanguage)
                 AsrMode.SERVER -> recordForServer()
             }
         }
+    }
+
+    /** Пауза записи. Работает только в серверном режиме — см. [CaptureState.Listening.canPause]. */
+    fun pause() {
+        val current = _state.value
+        if (current !is CaptureState.Listening || current.paused || !current.canPause) return
+        if (!recorder.pause()) return
+        _state.value = current.copy(paused = true, level = 0f)
+    }
+
+    fun resume() {
+        val current = _state.value
+        if (current !is CaptureState.Listening || !current.paused) return
+        if (!recorder.resume()) return
+        _state.value = current.copy(paused = false)
     }
 
     fun stop() {

@@ -8,6 +8,7 @@ import com.voicetomessenger.capture.VoicePipeline
 import com.voicetomessenger.data.AppDatabase
 import com.voicetomessenger.data.NotesRepository
 import com.voicetomessenger.data.SettingsRepository
+import com.voicetomessenger.net.AdminClient
 import com.voicetomessenger.net.BackendClient
 import kotlinx.coroutines.CoroutineScope
 
@@ -16,6 +17,7 @@ class AppContainer(private val context: Context) {
 
     val settings = SettingsRepository(context)
     val backend = BackendClient(settings)
+    val admin = AdminClient(settings)
     val notes = NotesRepository(AppDatabase.get(context).noteDao())
 
     /**

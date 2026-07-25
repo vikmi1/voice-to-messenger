@@ -24,18 +24,30 @@ def _default_config() -> dict:
         "active_provider": "mistral",
         # Токен, который приложение шлёт в заголовке Authorization: Bearer <token>
         "api_token": secrets.token_urlsafe(24),
+        # Токен админ-панели в приложении (заголовок X-Admin-Token). Отдельный от
+        # api_token: обычный токен даёт только обработку текста, этот — правку настроек.
+        "admin_token": secrets.token_urlsafe(24),
         "providers": {
             "openai": {
                 "label": "OpenAI",
+                "kind": "openai",
                 "base_url": "https://api.openai.com/v1",
                 "api_key": "",
                 "model": "gpt-4o-mini",
             },
             "mistral": {
                 "label": "Mistral",
+                "kind": "openai",
                 "base_url": "https://api.mistral.ai/v1",
                 "api_key": "",
                 "model": "mistral-small-latest",
+            },
+            "anthropic": {
+                "label": "Anthropic (Claude)",
+                "kind": "anthropic",
+                "base_url": "https://api.anthropic.com/v1",
+                "api_key": "",
+                "model": "claude-sonnet-5",
             },
         },
         # Настройки распознавания речи на сервере (Whisper-совместимый эндпоинт)
@@ -62,6 +74,32 @@ def _default_config() -> dict:
     }
 
 
+def _migrate(cfg: dict) -> bool:
+    """Дополняет конфиг полями, появившимися позже. Возвращает True, если что-то поменялось.
+
+    Нужно, потому что конфиг хранится одним JSON-документом: у боевой базы нет
+    ни admin_token, ни kind у провайдеров, ни провайдера anthropic.
+    """
+    changed = False
+
+    if not cfg.get("admin_token"):
+        cfg["admin_token"] = secrets.token_urlsafe(24)
+        changed = True
+
+    providers = cfg.setdefault("providers", {})
+    for name, prov in providers.items():
+        if not prov.get("kind"):
+            # Единственный несовместимый с OpenAI вариант — Anthropic, узнаём по адресу.
+            prov["kind"] = "anthropic" if "anthropic" in (prov.get("base_url") or "") else "openai"
+            changed = True
+
+    if "anthropic" not in providers:
+        providers["anthropic"] = _default_config()["providers"]["anthropic"]
+        changed = True
+
+    return changed
+
+
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(_DB_PATH)
     conn.execute("CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY, data TEXT NOT NULL)")
@@ -76,6 +114,13 @@ def init_db() -> None:
                 "INSERT INTO config (id, data) VALUES (1, ?)",
                 (json.dumps(_default_config(), ensure_ascii=False),),
             )
+            return
+        cfg = json.loads(row[0])
+        if _migrate(cfg):
+            conn.execute(
+                "UPDATE config SET data = ? WHERE id = 1",
+                (json.dumps(cfg, ensure_ascii=False),),
+            )
 
 
 def load() -> dict:
@@ -88,7 +133,9 @@ def load() -> dict:
                 (json.dumps(cfg, ensure_ascii=False),),
             )
             return cfg
-        return json.loads(row[0])
+        cfg = json.loads(row[0])
+        _migrate(cfg)  # на чтении не пишем в базу: init_db уже сохранил результат
+        return cfg
 
 
 def save(cfg: dict) -> None:

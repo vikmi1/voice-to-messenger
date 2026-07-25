@@ -28,9 +28,14 @@ data class Settings(
     val asrLanguage: String = "ru-RU",
     val processingMode: ProcessingMode = ProcessingMode.SERVER,
     val bubbleEnabled: Boolean = false,
+    /** Токен админ-панели. Пока пуст — раздела «Админ» в приложении нет. */
+    val adminToken: String = "",
 ) {
     val isServerConfigured: Boolean
         get() = serverUrl.isNotBlank() && apiToken.isNotBlank()
+
+    val isAdmin: Boolean
+        get() = adminToken.isNotBlank()
 }
 
 data class Style(val id: String, val name: String)

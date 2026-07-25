@@ -1,0 +1,130 @@
+package com.voicetomessenger.data
+
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** Тип API провайдера: определяет, каким классом бэкенд будет с ним говорить. */
+enum class ProviderKind(val id: String, val title: String) {
+    OPENAI("openai", "OpenAI-совместимый"),
+    ANTHROPIC("anthropic", "Anthropic (Claude)"),
+    ;
+
+    companion object {
+        fun from(id: String?): ProviderKind = entries.firstOrNull { it.id == id } ?: OPENAI
+    }
+}
+
+data class ProviderConfig(
+    /** Ключ в конфиге бэкенда: openai, mistral, anthropic… Неизменяем после создания. */
+    val key: String,
+    val label: String,
+    val kind: ProviderKind,
+    val baseUrl: String,
+    val apiKey: String,
+    val model: String,
+)
+
+data class StyleConfig(val id: String, val name: String, val prompt: String)
+
+data class LanguageConfig(val code: String, val name: String)
+
+/**
+ * Конфигурация бэкенда — то же самое, что редактируется в веб-панели `/admin`.
+ *
+ * [rawJson] хранит исходный документ: при сохранении известные поля перезаписываются
+ * поверх него, поэтому настройки, о которых приложение ещё не знает, не теряются.
+ */
+data class AdminConfig(
+    val activeProvider: String,
+    val providers: List<ProviderConfig>,
+    val asrProvider: String,
+    val asrModel: String,
+    val basePrompt: String,
+    val styles: List<StyleConfig>,
+    val languages: List<LanguageConfig>,
+    val apiToken: String,
+    val adminToken: String,
+    private val rawJson: String,
+) {
+    fun provider(key: String): ProviderConfig? = providers.firstOrNull { it.key == key }
+
+    fun withProvider(updated: ProviderConfig): AdminConfig =
+        copy(providers = providers.map { if (it.key == updated.key) updated else it })
+
+    fun toJson(): String {
+        val root = runCatching { JSONObject(rawJson) }.getOrElse { JSONObject() }
+
+        val provs = JSONObject()
+        providers.forEach { p ->
+            // Неизвестные поля провайдера (если появятся) тоже сохраняем.
+            val existing = root.optJSONObject("providers")?.optJSONObject(p.key) ?: JSONObject()
+            existing.put("label", p.label)
+            existing.put("kind", p.kind.id)
+            existing.put("base_url", p.baseUrl)
+            existing.put("api_key", p.apiKey)
+            existing.put("model", p.model)
+            provs.put(p.key, existing)
+        }
+
+        val stylesArr = JSONArray()
+        styles.filter { it.id.isNotBlank() }.forEach {
+            stylesArr.put(JSONObject().put("id", it.id).put("name", it.name).put("prompt", it.prompt))
+        }
+        val langsArr = JSONArray()
+        languages.filter { it.code.isNotBlank() }.forEach {
+            langsArr.put(JSONObject().put("code", it.code).put("name", it.name))
+        }
+
+        return root
+            .put("active_provider", activeProvider)
+            .put("providers", provs)
+            .put("asr", JSONObject().put("provider", asrProvider).put("model", asrModel))
+            .put("base_prompt", basePrompt)
+            .put("styles", stylesArr)
+            .put("languages", langsArr)
+            .put("api_token", apiToken)
+            .put("admin_token", adminToken)
+            .toString()
+    }
+
+    companion object {
+        fun parse(json: String): AdminConfig {
+            val root = JSONObject(json)
+
+            val provsObj = root.optJSONObject("providers") ?: JSONObject()
+            val providers = provsObj.keys().asSequence().map { key ->
+                val p = provsObj.getJSONObject(key)
+                ProviderConfig(
+                    key = key,
+                    label = p.optString("label", key),
+                    kind = ProviderKind.from(p.optString("kind")),
+                    baseUrl = p.optString("base_url"),
+                    apiKey = p.optString("api_key"),
+                    model = p.optString("model"),
+                )
+            }.sortedBy { it.key }.toList()
+
+            val asr = root.optJSONObject("asr") ?: JSONObject()
+
+            return AdminConfig(
+                activeProvider = root.optString("active_provider"),
+                providers = providers,
+                asrProvider = asr.optString("provider"),
+                asrModel = asr.optString("model", "whisper-1"),
+                basePrompt = root.optString("base_prompt"),
+                styles = root.optJSONArray("styles").mapObjects {
+                    StyleConfig(it.optString("id"), it.optString("name"), it.optString("prompt"))
+                },
+                languages = root.optJSONArray("languages").mapObjects {
+                    LanguageConfig(it.optString("code"), it.optString("name"))
+                },
+                apiToken = root.optString("api_token"),
+                adminToken = root.optString("admin_token"),
+                rawJson = json,
+            )
+        }
+
+        private fun <T> JSONArray?.mapObjects(transform: (JSONObject) -> T): List<T> =
+            if (this == null) emptyList() else (0 until length()).map { transform(getJSONObject(it)) }
+    }
+}

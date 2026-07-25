@@ -57,6 +57,19 @@ class OpenAICompatibleProvider(LlmProvider):
                     yield delta
 
 
+def list_models(base_url: str, api_key: str) -> list[str]:
+    """Список моделей провайдера (GET /models) — для выпадающего списка в панели."""
+    if not api_key:
+        raise RuntimeError("Не задан API-ключ провайдера.")
+
+    url = f"{(base_url or '').rstrip('/')}/models"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"{resp.status_code}: {resp.text[:300]}")
+    data = resp.json().get("data") or []
+    return [m["id"] for m in data if isinstance(m, dict) and m.get("id")]
+
+
 def transcribe_audio(base_url: str, api_key: str, model: str, file_bytes: bytes,
                      filename: str = "audio.m4a", content_type: str = "audio/m4a") -> str:
     """Распознаёт речь через OpenAI-совместимый /audio/transcriptions (Whisper).

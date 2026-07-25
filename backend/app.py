@@ -6,19 +6,27 @@
   GET  /api/options       — стили и языки для приложения, Bearer-токен
   POST /api/transcribe    — аудио → сырой текст (Whisper), Bearer-токен
   GET  /admin             — админ-панель (Basic Auth)
-  GET  /admin/api/config  — текущая конфигурация (Basic Auth)
-  POST /admin/api/config  — сохранить конфигурацию (Basic Auth)
+  GET  /admin/api/config  — текущая конфигурация (админ-доступ)
+  POST /admin/api/config  — сохранить конфигурацию (админ-доступ)
+  GET  /admin/api/models  — список моделей провайдера (админ-доступ)
+  POST /admin/api/test    — прогнать текст через текущие настройки (админ-доступ)
+
+Админ-доступ — это Basic Auth (веб) ИЛИ заголовок X-Admin-Token (приложение).
 """
 
 import functools
 import os
+import secrets
 
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
 
 import config_store
 from prompts import build_system
+from providers import anthropic as anthropic_provider
+from providers.anthropic import AnthropicProvider
 from providers.openai_compatible import OpenAICompatibleProvider, transcribe_audio
+from providers.openai_compatible import list_models as openai_list_models
 
 load_dotenv()
 
@@ -35,16 +43,44 @@ if ADMIN_PASS == "changeme":
 
 # --- Авторизация -----------------------------------------------------------
 
+def _basic_auth_ok() -> bool:
+    auth = request.authorization
+    return bool(auth) and auth.username == ADMIN_USER and auth.password == ADMIN_PASS
+
+
+def _admin_token_ok() -> bool:
+    """Админ-токен приложения. Отдельный от api_token: даёт право менять настройки."""
+    supplied = request.headers.get("X-Admin-Token", "")
+    expected = config_store.load().get("admin_token") or ""
+    # Сравниваем байты: compare_digest падает на строках с не-ASCII символами.
+    return bool(expected) and secrets.compare_digest(supplied.encode(), expected.encode())
+
+
 def require_admin(view):
+    """Только для страницы панели: браузеру нужен именно Basic Auth с 401-челленджем."""
     @functools.wraps(view)
     def wrapper(*args, **kwargs):
-        auth = request.authorization
-        if not auth or auth.username != ADMIN_USER or auth.password != ADMIN_PASS:
+        if not _basic_auth_ok():
             return Response(
                 "Требуется авторизация", 401,
                 {"WWW-Authenticate": 'Basic realm="voice-to-messenger admin"'},
             )
         return view(*args, **kwargs)
+    return wrapper
+
+
+def require_admin_api(view):
+    """Для админского API: пускаем и браузер (Basic Auth), и приложение (X-Admin-Token)."""
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        if _basic_auth_ok() or _admin_token_ok():
+            return view(*args, **kwargs)
+        if request.headers.get("X-Admin-Token"):
+            return jsonify(error="unauthorized"), 401
+        return Response(
+            "Требуется авторизация", 401,
+            {"WWW-Authenticate": 'Basic realm="voice-to-messenger admin"'},
+        )
     return wrapper
 
 
@@ -67,6 +103,14 @@ def resolve_api_key(name: str, prov: dict) -> str:
     Позволяет держать ключи в .env (не попадает в git), а не только в базе.
     """
     return prov.get("api_key") or os.environ.get(f"{name.upper()}_API_KEY", "")
+
+
+def make_provider(name: str, prov: dict):
+    """Собирает провайдера нужного типа. kind: 'anthropic' или 'openai' (по умолчанию)."""
+    api_key = resolve_api_key(name, prov)
+    if prov.get("kind") == "anthropic":
+        return AnthropicProvider(prov["base_url"], api_key, prov["model"])
+    return OpenAICompatibleProvider(prov["base_url"], api_key, prov["model"])
 
 
 # --- Публичные эндпоинты для приложения ------------------------------------
@@ -92,8 +136,7 @@ def api_process():
     system = build_system(cfg["base_prompt"], style_prompt, target, lang_name)
 
     prov = cfg["providers"][cfg["active_provider"]]
-    api_key = resolve_api_key(cfg["active_provider"], prov)
-    provider = OpenAICompatibleProvider(prov["base_url"], api_key, prov["model"])
+    provider = make_provider(cfg["active_provider"], prov)
 
     def generate():
         try:
@@ -158,19 +201,76 @@ def admin_page():
 
 
 @app.get("/admin/api/config")
-@require_admin
+@require_admin_api
 def admin_get_config():
     return jsonify(config_store.load())
 
 
 @app.post("/admin/api/config")
-@require_admin
+@require_admin_api
 def admin_save_config():
     incoming = request.get_json(force=True, silent=True)
     if not isinstance(incoming, dict):
         return jsonify(error="invalid config"), 400
+    if not incoming.get("admin_token"):
+        # Пустой admin_token закрыл бы доступ к панели из приложения навсегда.
+        return jsonify(error="admin_token не может быть пустым"), 400
     config_store.save(incoming)
     return jsonify(status="saved")
+
+
+@app.get("/admin/api/models")
+@require_admin_api
+def admin_list_models():
+    """Живой список моделей провайдера — чтобы не вбивать ID модели руками."""
+    cfg = config_store.load()
+    name = request.args.get("provider") or cfg["active_provider"]
+    prov = cfg["providers"].get(name)
+    if not prov:
+        return jsonify(error="unknown provider"), 404
+
+    api_key = resolve_api_key(name, prov)
+    lister = anthropic_provider.list_models if prov.get("kind") == "anthropic" else openai_list_models
+    try:
+        models = lister(prov["base_url"], api_key)
+    except Exception as exc:  # noqa: BLE001 — показываем причину прямо в панели
+        return jsonify(error=str(exc)), 502
+    return jsonify(provider=name, models=sorted(models))
+
+
+@app.post("/admin/api/test")
+@require_admin_api
+def admin_test():
+    """Прогон текста через сохранённые настройки — результат целиком, без стриминга.
+
+    provider/model можно переопределить в теле запроса, чтобы сравнить модели,
+    ничего не сохраняя.
+    """
+    cfg = config_store.load()
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify(error="empty text"), 400
+
+    name = data.get("provider") or cfg["active_provider"]
+    prov = cfg["providers"].get(name)
+    if not prov:
+        return jsonify(error="unknown provider"), 404
+    if data.get("model"):
+        prov = {**prov, "model": data["model"]}
+
+    style_id = data.get("style") or "neutral"
+    target = data.get("target_lang") or "off"
+    style_prompt = next((s["prompt"] for s in cfg["styles"] if s["id"] == style_id), "")
+    lang_name = next((l["name"] for l in cfg["languages"] if l["code"] == target), target)
+    system = build_system(cfg["base_prompt"], style_prompt, target, lang_name)
+
+    try:
+        result = "".join(make_provider(name, prov).stream(system, text))
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error("test error: %s", exc, exc_info=True)
+        return jsonify(error=str(exc)), 502
+    return jsonify(text=result, provider=name, model=prov["model"])
 
 
 if __name__ == "__main__":

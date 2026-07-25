@@ -29,6 +29,7 @@ class SettingsRepository(context: Context) {
         val ASR_LANGUAGE = stringPreferencesKey("asr_language")
         val PROCESSING_MODE = stringPreferencesKey("processing_mode")
         val BUBBLE_ENABLED = booleanPreferencesKey("bubble_enabled")
+        val ADMIN_TOKEN = stringPreferencesKey("admin_token")
         val OPTIONS_JSON = stringPreferencesKey("options_json")
     }
 
@@ -44,6 +45,7 @@ class SettingsRepository(context: Context) {
             processingMode = prefs[Keys.PROCESSING_MODE]?.toEnum<ProcessingMode>()
                 ?: defaults.processingMode,
             bubbleEnabled = prefs[Keys.BUBBLE_ENABLED] ?: defaults.bubbleEnabled,
+            adminToken = prefs[Keys.ADMIN_TOKEN] ?: defaults.adminToken,
         )
     }
 
@@ -58,6 +60,8 @@ class SettingsRepository(context: Context) {
         prefs[Keys.API_TOKEN] = token.trim()
     }
 
+    suspend fun setApiToken(token: String) = store.edit { it[Keys.API_TOKEN] = token.trim() }
+
     suspend fun setStyle(id: String) = store.edit { it[Keys.STYLE_ID] = id }
 
     suspend fun setTargetLang(code: String) = store.edit { it[Keys.TARGET_LANG] = code }
@@ -71,6 +75,9 @@ class SettingsRepository(context: Context) {
 
     suspend fun setBubbleEnabled(enabled: Boolean) =
         store.edit { it[Keys.BUBBLE_ENABLED] = enabled }
+
+    /** Пустая строка убирает раздел «Админ» из приложения. */
+    suspend fun setAdminToken(token: String) = store.edit { it[Keys.ADMIN_TOKEN] = token.trim() }
 
     suspend fun cacheOptions(options: Options) = store.edit {
         it[Keys.OPTIONS_JSON] = serializeOptions(options)

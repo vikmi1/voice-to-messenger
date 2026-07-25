@@ -109,6 +109,23 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.settings.setBubbleEnabled(enabled) }
     }
 
+    /**
+     * Проверяет админ-токен на сервере и, если подошёл, сохраняет его —
+     * после этого в настройках появляется вход в админ-панель.
+     */
+    fun unlockAdmin(token: String, onUnlocked: () -> Unit) {
+        viewModelScope.launch {
+            runCatching { container.admin.checkToken(token.trim()) }.fold(
+                onSuccess = {
+                    container.settings.setAdminToken(token)
+                    _messages.tryEmit("Админ-доступ открыт")
+                    onUnlocked()
+                },
+                onFailure = { _messages.tryEmit(it.message ?: "Токен не подошёл") },
+            )
+        }
+    }
+
     fun checkConnection() {
         viewModelScope.launch {
             val message = runCatching { container.backend.options() }

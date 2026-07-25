@@ -8,7 +8,9 @@ import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -33,22 +36,26 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.voicetomessenger.BuildConfig
 import com.voicetomessenger.bubble.BubbleService
 import com.voicetomessenger.data.AsrMode
 import com.voicetomessenger.data.ON_DEVICE_LANGUAGES
@@ -56,7 +63,7 @@ import com.voicetomessenger.data.ProcessingMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
+fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: () -> Unit) {
     val context = LocalContext.current
     val settings by viewModel.settings.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -218,9 +225,91 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+
+            if (settings.isAdmin) {
+                HorizontalDivider()
+                Section("Админ") {
+                    Button(onClick = onOpenAdmin, modifier = Modifier.fillMaxWidth()) {
+                        Text("Открыть панель настроек сервера")
+                    }
+                }
+            }
+
+            HorizontalDivider()
+            AdminUnlockFooter(
+                unlocked = settings.isAdmin,
+                onSubmit = { token -> viewModel.unlockAdmin(token, onOpenAdmin) },
+            )
         }
     }
 }
+
+/**
+ * Строка с версией внизу настроек. Семь нажатий по ней открывают ввод админ-токена —
+ * пока токен не введён, никаких следов админ-панели в интерфейсе нет.
+ */
+@Composable
+private fun AdminUnlockFooter(unlocked: Boolean, onSubmit: (String) -> Unit) {
+    var taps by remember { mutableIntStateOf(0) }
+    var askToken by remember { mutableStateOf(false) }
+    var token by remember { mutableStateOf("") }
+
+    Text(
+        text = "Voice-to-Messenger ${BuildConfig.VERSION_NAME}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                // Без ряби и подсветки: строка не должна выглядеть кликабельной.
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
+                taps++
+                if (taps >= ADMIN_UNLOCK_TAPS) {
+                    taps = 0
+                    if (!unlocked) askToken = true
+                }
+            }
+            .padding(vertical = 12.dp),
+        textAlign = TextAlign.Center,
+    )
+
+    if (askToken) {
+        AlertDialog(
+            onDismissRequest = { askToken = false },
+            title = { Text("Админ-доступ") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text("Админ-токен") },
+                        singleLine = true,
+                    )
+                    Text(
+                        "Вкладка «Приложение» в веб-панели /admin.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        askToken = false
+                        onSubmit(token.trim())
+                        token = ""
+                    },
+                    enabled = token.isNotBlank(),
+                ) { Text("Войти") }
+            },
+            dismissButton = { TextButton(onClick = { askToken = false }) { Text("Отмена") } },
+        )
+    }
+}
+
+private const val ADMIN_UNLOCK_TAPS = 7
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {

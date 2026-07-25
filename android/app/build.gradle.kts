@@ -39,6 +39,8 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.VERSION_NAME показывается внизу настроек — по нему же скрытый вход в админку.
+        buildConfig = true
     }
 
     packaging {
@@ -70,4 +72,6 @@ dependencies {
     implementation(libs.okhttp)
 
     testImplementation(libs.junit)
+    // В JVM-тестах org.json из Android SDK — заглушка, поэтому берём настоящую реализацию.
+    testImplementation(libs.json)
 }

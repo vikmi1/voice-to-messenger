@@ -51,6 +51,7 @@
     <button data-tab="prompt">Системный промпт</button>
     <button data-tab="styles">Стили</button>
     <button data-tab="languages">Языки</button>
+    <button data-tab="test">Тест</button>
     <button data-tab="app">Приложение</button>
   </div>
 
@@ -92,13 +93,42 @@
     <button class="btn secondary" onclick="addLanguage()">+ Добавить язык</button>
   </div>
 
+  <div id="test" class="panel">
+    <div class="card">
+      <p class="muted">Прогон текста через текущие настройки. Провайдер и модель можно
+        переопределить, ничего не сохраняя — удобно сравнивать модели.</p>
+      <div class="row">
+        <div><label>Провайдер</label><select id="test_provider"></select></div>
+        <div><label>Модель (пусто — из настроек)</label><input id="test_model" placeholder="как в настройках"></div>
+      </div>
+      <div class="row">
+        <div><label>Стиль</label><select id="test_style"></select></div>
+        <div><label>Перевод</label><select id="test_lang"></select></div>
+      </div>
+      <label>Исходный текст (как надиктовано)</label>
+      <textarea id="test_input">ну это самое короче слушай надо бы завтра встретиться где-то часа в три ну или в четыре обсудить вопрос по проекту</textarea>
+      <button class="btn" style="margin-top:10px;" onclick="runTest()">Прогнать</button>
+      <label>Результат</label>
+      <textarea id="test_output" readonly placeholder="—"></textarea>
+      <p class="muted" id="test_meta"></p>
+    </div>
+  </div>
+
   <div id="app" class="panel">
     <div class="card">
       <label>API-токен (вставь его в приложение, поле «токен сервера»)</label>
       <input id="api_token">
       <p class="muted" style="margin-top:10px;">Приложение шлёт его в заголовке
         <code>Authorization: Bearer &lt;токен&gt;</code>. Смени — и старые устройства перестанут иметь доступ.</p>
-      <button class="btn secondary small" style="margin-top:8px;" onclick="regenToken()">Сгенерировать новый</button>
+      <button class="btn secondary small" style="margin-top:8px;" onclick="regenToken('api_token')">Сгенерировать новый</button>
+    </div>
+    <div class="card">
+      <label>Админ-токен (открывает панель настроек внутри приложения)</label>
+      <input id="admin_token">
+      <p class="muted" style="margin-top:10px;">Приложение шлёт его в заголовке
+        <code>X-Admin-Token</code>. В приложении: Настройки → 7 нажатий по строке с версией внизу.
+        Даёт полный доступ к настройкам, поэтому держи его отдельно от обычного API-токена.</p>
+      <button class="btn secondary small" style="margin-top:8px;" onclick="regenToken('admin_token')">Сгенерировать новый</button>
     </div>
   </div>
 </div>
@@ -150,13 +180,23 @@ function render() {
   ll.innerHTML = "";
   CFG.languages.forEach((l, i) => ll.appendChild(languageCard(l, i)));
 
+  // Тест
+  const opt = (v, n, cur) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(n)}</option>`;
+  document.getElementById("test_style").innerHTML = CFG.styles.map(s => opt(s.id, s.name)).join("");
+  document.getElementById("test_lang").innerHTML = CFG.languages.map(l => opt(l.code, l.name)).join("");
+
   // Приложение
   document.getElementById("api_token").value = CFG.api_token || "";
+  document.getElementById("admin_token").value = CFG.admin_token || "";
 }
 
 function refreshProviderSelects() {
   const keys = Object.keys(CFG.providers);
-  for (const [id, cur] of [["active_provider", CFG.active_provider], ["asr_provider", CFG.asr?.provider]]) {
+  for (const [id, cur] of [
+    ["active_provider", CFG.active_provider],
+    ["asr_provider", CFG.asr?.provider],
+    ["test_provider", CFG.active_provider],
+  ]) {
     const sel = document.getElementById(id);
     sel.innerHTML = keys.map(k =>
       `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(CFG.providers[k].label || k)}</option>`
@@ -165,6 +205,7 @@ function refreshProviderSelects() {
 }
 
 function providerCard(key, p) {
+  const kind = p.kind || "openai";
   const d = document.createElement("div");
   d.className = "card";
   d.dataset.key = key;
@@ -175,12 +216,41 @@ function providerCard(key, p) {
     </div>
     <div class="row">
       <div><label>Название</label><input class="p-label" value="${esc(p.label)}"></div>
-      <div><label>Модель</label><input class="p-model" value="${esc(p.model)}"></div>
+      <div>
+        <label>Тип API</label>
+        <select class="p-kind">
+          <option value="openai" ${kind === "openai" ? "selected" : ""}>OpenAI-совместимый</option>
+          <option value="anthropic" ${kind === "anthropic" ? "selected" : ""}>Anthropic (Claude)</option>
+        </select>
+      </div>
     </div>
+    <label>Модель</label>
+    <div class="prov-head">
+      <input class="p-model" list="models-${esc(key)}" value="${esc(p.model)}" style="flex:1;">
+      <button class="btn secondary small" onclick="loadModels('${esc(key)}', this)">Список</button>
+    </div>
+    <datalist id="models-${esc(key)}"></datalist>
     <label>Base URL</label><input class="p-base" value="${esc(p.base_url)}">
     <label>API-ключ</label><input class="p-key" type="password" value="${esc(p.api_key)}" placeholder="sk-...">
   `;
   return d;
+}
+
+/** Тянет список моделей у самого провайдера — ключ должен быть уже сохранён. */
+async function loadModels(key, btn) {
+  btn.textContent = "…";
+  try {
+    const r = await fetch("/admin/api/models?provider=" + encodeURIComponent(key));
+    const data = await r.json();
+    if (!r.ok) { toast(data.error || "Не удалось получить список"); return; }
+    const dl = document.getElementById("models-" + key);
+    dl.innerHTML = data.models.map(m => `<option value="${esc(m)}">`).join("");
+    toast(`Моделей: ${data.models.length} — жми поле «Модель»`);
+  } catch (e) {
+    toast("Ошибка сети");
+  } finally {
+    btn.textContent = "Список";
+  }
 }
 
 function styleCard(s, i) {
@@ -217,15 +287,39 @@ function languageCard(l, i) {
 function addProvider() {
   const key = prompt("Ключ нового провайдера (латиницей, напр. bedrock):");
   if (!key) return;
-  CFG.providers[key] = { label: key, base_url: "", api_key: "", model: "" };
+  CFG.providers[key] = { label: key, kind: "openai", base_url: "", api_key: "", model: "" };
   render();
 }
 function addStyle() { CFG.styles.push({ id: "", name: "", prompt: "" }); render(); }
 function addLanguage() { CFG.languages.push({ code: "", name: "" }); render(); }
-function regenToken() {
+function regenToken(id) {
   const a = new Uint8Array(24); crypto.getRandomValues(a);
-  document.getElementById("api_token").value = btoa(String.fromCharCode(...a))
+  document.getElementById(id).value = btoa(String.fromCharCode(...a))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function runTest() {
+  const out = document.getElementById("test_output");
+  const meta = document.getElementById("test_meta");
+  out.value = "…"; meta.textContent = "";
+  const r = await fetch("/admin/api/test", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: document.getElementById("test_input").value,
+      provider: document.getElementById("test_provider").value,
+      model: document.getElementById("test_model").value.trim(),
+      style: document.getElementById("test_style").value,
+      target_lang: document.getElementById("test_lang").value,
+    }),
+  });
+  const data = await r.json();
+  if (r.ok) {
+    out.value = data.text;
+    meta.textContent = `${data.provider} · ${data.model}`;
+  } else {
+    out.value = "";
+    meta.textContent = data.error || "Ошибка";
+  }
 }
 
 function collect() {
@@ -233,6 +327,7 @@ function collect() {
   document.querySelectorAll("#providers_list .card").forEach(c => {
     providers[c.dataset.key] = {
       label: c.querySelector(".p-label").value.trim(),
+      kind: c.querySelector(".p-kind").value,
       model: c.querySelector(".p-model").value.trim(),
       base_url: c.querySelector(".p-base").value.trim(),
       api_key: c.querySelector(".p-key").value,
@@ -251,6 +346,7 @@ function collect() {
   return {
     active_provider: document.getElementById("active_provider").value,
     api_token: document.getElementById("api_token").value.trim(),
+    admin_token: document.getElementById("admin_token").value.trim(),
     providers,
     asr: {
       provider: document.getElementById("asr_provider").value,
@@ -268,7 +364,7 @@ async function saveAll() {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   if (r.ok) { CFG = body; toast("Сохранено"); }
-  else { toast("Ошибка сохранения"); }
+  else { toast((await r.json().catch(() => ({}))).error || "Ошибка сохранения"); }
 }
 
 function toast(msg) {

@@ -12,7 +12,7 @@
   «Показать исходный текст», быстрые правки «Короче / Мягче / Деловее».
 - **Заметки** — локальная база (Room), без синхронизации.
 - **Пузырь** — кнопка микрофона поверх мессенджеров: нажал → наговорил →
-  готовый текст в буфере обмена.
+  готовый текст в буфере обмена. Выключить — кнопка «Выключить» в уведомлении.
 
 ## Структура
 
@@ -40,13 +40,26 @@ app/src/main/java/com/voicetomessenger/
    `Settings → Build Tools → Gradle → Use Gradle from: 'gradle-wrapper.properties'`.
 4. Подключи телефон с включённой отладкой по USB и нажми ▶.
 
-Из командной строки (после установки SDK):
+Из командной строки (после первого Gradle Sync в Android Studio):
 
-```bash
-cd android && ./gradlew assembleDebug
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$gradle = (Get-ChildItem "$env:USERPROFILE\.gradle\wrapper\dists\gradle-8.9-bin" -Recurse -Filter gradle.bat | Select -First 1).FullName
+Set-Location android
+& $gradle assembleDebug
 ```
 
 APK окажется в `app/build/outputs/apk/debug/`.
+
+Установить через ADB:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb install -r app\build\outputs\apk\debug\app-debug.apk
+```
+
+> `gradle-wrapper.jar` не хранится в репозитории — `./gradlew` без предварительного
+> Gradle Sync в Android Studio не сработает.
 
 Юнит-тесты локальной чистки текста:
 
@@ -58,7 +71,7 @@ cd android && ./gradlew test
 
 Открой «Настройки» в приложении и заполни:
 
-- **Адрес бэкенда** — например `https://voice.example.com`
+- **Адрес бэкенда** — прод: `https://voiceapp.aithinglab.com`
   (для эмулятора и локального сервера — `http://10.0.2.2:8000`).
 - **API-токен** — вкладка «Приложение» в админ-панели бэкенда.
 

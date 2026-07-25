@@ -79,7 +79,14 @@ class BubbleService : Service() {
         scope.launch { pipeline.state.collect(::render) }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            scope.launch { appContainer.settings.setBubbleEnabled(false) }
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         removePanel()
@@ -266,11 +273,19 @@ class BubbleService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val stopIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, BubbleService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle(getString(R.string.bubble_notification_title))
             .setContentText(getString(R.string.bubble_notification_text))
             .setContentIntent(openApp)
+            .addAction(0, getString(R.string.bubble_stop), stopIntent)
             .setOngoing(true)
             .build()
 
@@ -293,6 +308,7 @@ class BubbleService : Service() {
     companion object {
         private const val CHANNEL_ID = "bubble"
         private const val NOTIFICATION_ID = 1
+        private const val ACTION_STOP = "com.voicetomessenger.BUBBLE_STOP"
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, BubbleService::class.java))

@@ -313,14 +313,16 @@ class VoicePipeline(
 
     /** Собирает запрос к обработчику. Для «Моего стиля» подтягивает примеры из заметок. */
     private suspend fun buildRequest(raw: String, s: Settings): ProcessRequest {
-        val examples = if (s.styleId == MY_STYLE_ID) {
+        // Список — это перечень, тон к нему не применяем: пустой стиль → сервер не добавит тон.
+        val styleId = if (s.asList) "" else s.styleId
+        val examples = if (styleId == MY_STYLE_ID) {
             notes.recentTexts(EXAMPLE_LIMIT).filter { it.length in EXAMPLE_MIN_LEN..EXAMPLE_MAX_LEN }
         } else {
             emptyList()
         }
         return ProcessRequest(
             raw = raw,
-            styleId = s.styleId,
+            styleId = styleId,
             targetLang = s.targetLang,
             asList = s.asList,
             emoji = s.emoji,

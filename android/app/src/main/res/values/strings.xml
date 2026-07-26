@@ -35,6 +35,7 @@
     <string name="rec_resume">"  Продолжить"</string>
     <string name="rec_pause">"  Пауза"</string>
     <string name="rec_stop">"  Стоп"</string>
+    <string name="rec_cancel">Отменить запись</string>
     <string name="rec_pause_hint">Пауза работает только при распознавании на сервере — переключается в настройках</string>
 
     <string name="type_label">Тип</string>
@@ -43,11 +44,19 @@
 
     <string name="style_label">Стиль</string>
     <string name="style_local_hint">Локальная обработка стили не применяет</string>
+    <string name="style_list_hint">Список — это просто перечень, стиль к нему не применяется</string>
+    <string name="style_mine">Мой стиль</string>
+    <string name="style_friendly">Дружелюбно</string>
+    <string name="style_business">Деловой</string>
 
     <string name="emoji_on">😊 Эмодзи включены</string>
     <string name="emoji_off">😊 Добавить эмодзи</string>
 
     <string name="translate_label">Перевод</string>
+    <string name="lang_off">Без перевода</string>
+    <string name="lang_ru">Русский</string>
+    <string name="lang_de">Немецкий</string>
+    <string name="lang_en">Английский</string>
 
     <string name="raw_show">Показать исходный текст</string>
     <string name="raw_hide">Скрыть исходный текст</string>
@@ -71,6 +80,9 @@
     <string name="asr_on_device_desc">Быстро и без загрузки аудио на наш сервер. Язык выбирается вручную; распознаёт системный сервис (у Google он может обращаться в облако).</string>
     <string name="asr_server_desc">Аудио уходит на бэкенд и удаляется сразу после расшифровки. Качественнее и определяет язык сам.</string>
     <string name="asr_lang_label">Язык диктовки</string>
+
+    <string name="settings_language">Язык приложения</string>
+    <string name="lang_system">Система</string>
 
     <string name="settings_processing">Обработка текста</string>
     <string name="proc_server">Сервер (LLM)</string>

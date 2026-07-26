@@ -33,6 +33,7 @@
     <string name="rec_resume">"  Fortsetzen"</string>
     <string name="rec_pause">"  Pause"</string>
     <string name="rec_stop">"  Stopp"</string>
+    <string name="rec_cancel">Aufnahme abbrechen</string>
     <string name="rec_pause_hint">Pause funktioniert nur bei der Server-Erkennung — umschaltbar in den Einstellungen</string>
 
     <string name="type_label">Typ</string>
@@ -41,11 +42,19 @@
 
     <string name="style_label">Stil</string>
     <string name="style_local_hint">Die lokale Verarbeitung wendet keine Stile an</string>
+    <string name="style_list_hint">Eine Liste ist nur eine Aufzählung — der Stil wird nicht angewendet</string>
+    <string name="style_mine">Mein Stil</string>
+    <string name="style_friendly">Freundlich</string>
+    <string name="style_business">Sachlich</string>
 
     <string name="emoji_on">😊 Emojis an</string>
     <string name="emoji_off">😊 Emojis hinzufügen</string>
 
     <string name="translate_label">Übersetzung</string>
+    <string name="lang_off">Ohne Übersetzung</string>
+    <string name="lang_ru">Russisch</string>
+    <string name="lang_de">Deutsch</string>
+    <string name="lang_en">Englisch</string>
 
     <string name="raw_show">Originaltext anzeigen</string>
     <string name="raw_hide">Originaltext ausblenden</string>
@@ -69,6 +78,9 @@
     <string name="asr_on_device_desc">Schnell und ohne Audio-Upload auf unseren Server. Sprache wird manuell gewählt; erkannt wird über den Systemdienst (bei Google ggf. in der Cloud).</string>
     <string name="asr_server_desc">Audio geht ans Backend und wird direkt nach der Transkription gelöscht. Bessere Qualität und erkennt die Sprache selbst.</string>
     <string name="asr_lang_label">Diktatsprache</string>
+
+    <string name="settings_language">App-Sprache</string>
+    <string name="lang_system">System</string>
 
     <string name="settings_processing">Textverarbeitung</string>
     <string name="proc_server">Server (LLM)</string>

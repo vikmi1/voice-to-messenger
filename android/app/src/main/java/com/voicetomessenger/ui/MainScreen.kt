@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -123,6 +124,11 @@ fun MainScreen(
     }
 
     val serverMode = settings.processingMode == ProcessingMode.SERVER
+    // Пока идёт запись / расшифровка / генерация — опции не трогаем: менять их на ходу
+    // непонятно. Настраиваются до записи либо после появления результата (там reprocess).
+    val idleForOptions = capture is CaptureState.Idle ||
+        capture is CaptureState.Done || capture is CaptureState.Failed
+    val optionsEnabled = serverMode && idleForOptions
 
     Scaffold(
         topBar = {
@@ -166,21 +172,24 @@ fun MainScreen(
 
             MicSection(capture = capture, onClick = onMicClick)
 
-            TypeRow(asList = settings.asList, enabled = serverMode, onSelect = viewModel::setListMode)
+            TypeRow(asList = settings.asList, enabled = optionsEnabled, onSelect = viewModel::setListMode)
 
             StyleRow(
                 styles = options.styles,
                 selectedId = settings.styleId,
-                enabled = serverMode,
+                // Список — это заметка/перечень, стиль к нему не применяется.
+                enabled = optionsEnabled && !settings.asList,
+                listMode = settings.asList,
+                localMode = !serverMode,
                 onSelect = viewModel::selectStyle,
             )
 
-            EmojiRow(checked = settings.emoji, enabled = serverMode, onToggle = viewModel::setEmoji)
+            EmojiRow(checked = settings.emoji, enabled = optionsEnabled, onToggle = viewModel::setEmoji)
 
             LanguageRow(
                 languages = options.languages,
                 selectedCode = settings.targetLang,
-                enabled = serverMode,
+                enabled = optionsEnabled,
                 onSelect = viewModel::selectTargetLang,
             )
 
@@ -190,6 +199,7 @@ fun MainScreen(
                     onPause = viewModel::pauseCapture,
                     onResume = viewModel::resumeCapture,
                     onStop = viewModel::stopCapture,
+                    onCancel = viewModel::reset,
                 )
             }
 
@@ -306,6 +316,7 @@ private fun RecordingControls(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -326,6 +337,16 @@ private fun RecordingControls(
                 Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(stringResource(R.string.rec_stop))
             }
+        }
+        // Передумал — прервать запись без расшифровки и генерации, чтобы не жечь токены.
+        TextButton(onClick = onCancel, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.error,
+            )
+            Text("  " + stringResource(R.string.rec_cancel), color = MaterialTheme.colorScheme.error)
         }
         if (!state.canPause) {
             Text(
@@ -380,6 +401,8 @@ private fun StyleRow(
     styles: List<Style>,
     selectedId: String,
     enabled: Boolean,
+    listMode: Boolean,
+    localMode: Boolean,
     onSelect: (String) -> Unit,
 ) {
     if (styles.isEmpty()) return
@@ -396,18 +419,43 @@ private fun StyleRow(
                     selected = style.id == selectedId,
                     onClick = { onSelect(style.id) },
                     enabled = enabled,
-                    label = { Text(style.name) },
+                    label = { Text(styleLabel(style)) },
                 )
             }
         }
-        if (!enabled) {
+        // Поясняем, почему стили недоступны: список без стиля или локальная обработка.
+        val hint = when {
+            listMode -> stringResource(R.string.style_list_hint)
+            localMode -> stringResource(R.string.style_local_hint)
+            else -> null
+        }
+        if (hint != null) {
             Text(
-                stringResource(R.string.style_local_hint),
+                hint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+/** Название стиля: встроенные — локализованные, кастомные из админки — как пришли. */
+@Composable
+private fun styleLabel(style: Style): String = when (style.id) {
+    "mine" -> stringResource(R.string.style_mine)
+    "friendly" -> stringResource(R.string.style_friendly)
+    "business" -> stringResource(R.string.style_business)
+    else -> style.name
+}
+
+/** Название языка перевода: встроенные — локализованные, прочие — как пришли с сервера. */
+@Composable
+private fun languageLabel(language: Language): String = when (language.code) {
+    "off" -> stringResource(R.string.lang_off)
+    "ru" -> stringResource(R.string.lang_ru)
+    "de" -> stringResource(R.string.lang_de)
+    "en" -> stringResource(R.string.lang_en)
+    else -> language.name
 }
 
 /** Переключатель «ИИ сам расставит эмодзи». Работает только в серверном режиме. */
@@ -444,7 +492,7 @@ private fun LanguageRow(
                     selected = language.code == selectedCode,
                     onClick = { onSelect(language.code) },
                     enabled = enabled,
-                    label = { Text(language.name) },
+                    label = { Text(languageLabel(language)) },
                 )
             }
         }

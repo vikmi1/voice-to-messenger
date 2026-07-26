@@ -59,7 +59,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.voicetomessenger.BuildConfig
+import com.voicetomessenger.LocaleManager
 import com.voicetomessenger.R
+import com.voicetomessenger.findActivity
 import com.voicetomessenger.bubble.BubbleService
 import com.voicetomessenger.data.AsrMode
 import com.voicetomessenger.data.ON_DEVICE_LANGUAGES
@@ -139,6 +141,29 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
 
             HorizontalDivider()
 
+            Section(stringResource(R.string.settings_language)) {
+                val currentLang = LocaleManager.getLanguage(context)
+                // Пустой тег — язык системы. Смена языка пересоздаёт экран, чтобы
+                // строки перечитались из нужного values-*.
+                ChoiceRow(
+                    options = listOf(
+                        "" to stringResource(R.string.lang_system),
+                        "ru" to "Русский",
+                        "de" to "Deutsch",
+                        "en" to "English",
+                    ),
+                    selected = currentLang,
+                    onSelect = { tag ->
+                        if (tag != currentLang) {
+                            LocaleManager.setLanguage(context, tag)
+                            context.findActivity()?.recreate()
+                        }
+                    },
+                )
+            }
+
+            HorizontalDivider()
+
             Section(stringResource(R.string.settings_asr)) {
                 ChoiceRow(
                     options = listOf(
@@ -159,8 +184,19 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
 
                 if (settings.asrMode == AsrMode.ON_DEVICE) {
                     Text(stringResource(R.string.asr_lang_label), style = MaterialTheme.typography.labelLarge)
+                    // stringResource нельзя вызывать внутри map — резолвим имена заранее.
+                    val ru = stringResource(R.string.lang_ru)
+                    val de = stringResource(R.string.lang_de)
+                    val en = stringResource(R.string.lang_en)
                     ChoiceRow(
-                        options = ON_DEVICE_LANGUAGES.map { it.code to it.name },
+                        options = ON_DEVICE_LANGUAGES.map {
+                            it.code to when (it.code) {
+                                "ru-RU" -> ru
+                                "de-DE" -> de
+                                "en-US" -> en
+                                else -> it.name
+                            }
+                        },
                         selected = settings.asrLanguage,
                         onSelect = viewModel::setAsrLanguage,
                     )

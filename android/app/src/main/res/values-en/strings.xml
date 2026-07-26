@@ -33,6 +33,7 @@
     <string name="rec_resume">"  Resume"</string>
     <string name="rec_pause">"  Pause"</string>
     <string name="rec_stop">"  Stop"</string>
+    <string name="rec_cancel">Cancel recording</string>
     <string name="rec_pause_hint">Pause works only with server recognition — switch it in settings</string>
 
     <string name="type_label">Type</string>
@@ -41,11 +42,19 @@
 
     <string name="style_label">Style</string>
     <string name="style_local_hint">Local processing doesn’t apply styles</string>
+    <string name="style_list_hint">A list is just an enumeration — style isn’t applied</string>
+    <string name="style_mine">My style</string>
+    <string name="style_friendly">Friendly</string>
+    <string name="style_business">Business</string>
 
     <string name="emoji_on">😊 Emojis on</string>
     <string name="emoji_off">😊 Add emojis</string>
 
     <string name="translate_label">Translation</string>
+    <string name="lang_off">No translation</string>
+    <string name="lang_ru">Russian</string>
+    <string name="lang_de">German</string>
+    <string name="lang_en">English</string>
 
     <string name="raw_show">Show original text</string>
     <string name="raw_hide">Hide original text</string>
@@ -69,6 +78,9 @@
     <string name="asr_on_device_desc">Fast and without uploading audio to our server. Language is chosen manually; the system service recognizes it (Google’s may use the cloud).</string>
     <string name="asr_server_desc">Audio goes to the backend and is deleted right after transcription. Higher quality and detects the language itself.</string>
     <string name="asr_lang_label">Dictation language</string>
+
+    <string name="settings_language">App language</string>
+    <string name="lang_system">System</string>
 
     <string name="settings_processing">Text processing</string>
     <string name="proc_server">Server (LLM)</string>

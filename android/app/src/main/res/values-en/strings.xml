@@ -15,6 +15,7 @@
     <string name="action_save_note">To notes</string>
     <string name="action_new_message">New message</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
 
     <!-- Main screen -->
     <string name="setup_title">Server not set up</string>
@@ -24,7 +25,7 @@
 
     <string name="status_idle">Tap and speak your message</string>
     <string name="status_paused">Paused — tap “Resume”</string>
-    <string name="status_listening">Listening… tap “Stop” when you’re done</string>
+    <string name="status_listening">Listening… tap “Done” when you’ve finished</string>
     <string name="status_transcribing">Transcribing the recording…</string>
     <string name="status_processing">Preparing the message…</string>
     <string name="status_done">Done — check and send</string>
@@ -32,13 +33,14 @@
 
     <string name="rec_resume">"  Resume"</string>
     <string name="rec_pause">"  Pause"</string>
-    <string name="rec_stop">"  Stop"</string>
+    <string name="rec_stop">"  Done"</string>
     <string name="rec_cancel">Cancel recording</string>
     <string name="rec_pause_hint">Pause works only with server recognition — switch it in settings</string>
 
     <string name="type_label">Type</string>
     <string name="type_message">Message</string>
     <string name="type_list">List</string>
+    <string name="type_locked_hint">The type is chosen before recording: a list only comes out of what you dictated as a list. Tap “New message” to switch.</string>
 
     <string name="style_label">Style</string>
     <string name="style_local_hint">Local processing doesn’t apply styles</string>
@@ -107,6 +109,22 @@
     <string name="cd_copy">Copy</string>
     <string name="cd_share">Share</string>
     <string name="cd_delete">Delete</string>
+    <string name="cd_edit">Edit</string>
+    <string name="note_edit_title">Edit note</string>
+    <string name="note_delete_title">Delete note?</string>
+    <string name="note_delete_body">The note can’t be restored.</string>
+    <string name="notes_clear_title">Delete all notes?</string>
+    <string name="notes_clear_body">All %1$d notes will be erased. They can’t be restored, and “My style” will be left without examples.</string>
+
+    <!-- Game -->
+    <string name="cd_game">2048 game</string>
+    <string name="game_title">2048</string>
+    <string name="game_score">Score</string>
+    <string name="game_best">Best</string>
+    <string name="game_new">New game</string>
+    <string name="game_hint">Swipe in any direction — matching tiles merge</string>
+    <string name="game_won">2048! You can keep playing</string>
+    <string name="game_over">No moves left</string>
 
     <!-- System actions -->
     <string name="copy_toast">Copied</string>

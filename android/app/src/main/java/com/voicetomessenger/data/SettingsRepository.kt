@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +34,14 @@ class SettingsRepository(context: Context) {
         val BUBBLE_ENABLED = booleanPreferencesKey("bubble_enabled")
         val ADMIN_TOKEN = stringPreferencesKey("admin_token")
         val OPTIONS_JSON = stringPreferencesKey("options_json")
+        val GAME_BEST = intPreferencesKey("game_best")
     }
+
+    /**
+     * Рекорд в 2048. Держим отдельным потоком, а не полем [Settings]: игра к настройкам
+     * приложения отношения не имеет и не должна пересобирать состояние главного экрана.
+     */
+    val gameBest: Flow<Int> = store.data.map { it[Keys.GAME_BEST] ?: 0 }
 
     val settings: Flow<Settings> = store.data.map { prefs ->
         val defaults = Settings()
@@ -86,6 +94,10 @@ class SettingsRepository(context: Context) {
 
     /** Пустая строка убирает раздел «Админ» из приложения. */
     suspend fun setAdminToken(token: String) = store.edit { it[Keys.ADMIN_TOKEN] = token.trim() }
+
+    suspend fun setGameBest(score: Int) = store.edit {
+        if (score > (it[Keys.GAME_BEST] ?: 0)) it[Keys.GAME_BEST] = score
+    }
 
     suspend fun cacheOptions(options: Options) = store.edit {
         it[Keys.OPTIONS_JSON] = serializeOptions(options)

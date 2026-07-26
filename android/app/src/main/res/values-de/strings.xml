@@ -15,6 +15,7 @@
     <string name="action_save_note">Zu Notizen</string>
     <string name="action_new_message">Neue Nachricht</string>
     <string name="action_cancel">Abbrechen</string>
+    <string name="action_delete">Löschen</string>
 
     <!-- Hauptbildschirm -->
     <string name="setup_title">Server nicht eingerichtet</string>
@@ -24,7 +25,7 @@
 
     <string name="status_idle">Tippe und sprich deine Nachricht</string>
     <string name="status_paused">Pause — tippe auf „Fortsetzen“</string>
-    <string name="status_listening">Ich höre zu … tippe auf „Stopp“, wenn du fertig bist</string>
+    <string name="status_listening">Ich höre zu … tippe auf „Fertig“, wenn du so weit bist</string>
     <string name="status_transcribing">Aufnahme wird transkribiert …</string>
     <string name="status_processing">Nachricht wird vorbereitet …</string>
     <string name="status_done">Fertig — prüfen und senden</string>
@@ -32,13 +33,14 @@
 
     <string name="rec_resume">"  Fortsetzen"</string>
     <string name="rec_pause">"  Pause"</string>
-    <string name="rec_stop">"  Stopp"</string>
+    <string name="rec_stop">"  Fertig"</string>
     <string name="rec_cancel">Aufnahme abbrechen</string>
     <string name="rec_pause_hint">Pause funktioniert nur bei der Server-Erkennung — umschaltbar in den Einstellungen</string>
 
     <string name="type_label">Typ</string>
     <string name="type_message">Nachricht</string>
     <string name="type_list">Liste</string>
+    <string name="type_locked_hint">Der Typ wird vor der Aufnahme gewählt: eine Liste entsteht nur aus dem, was als Liste diktiert wurde. Tippe auf „Neue Nachricht“, um zu wechseln.</string>
 
     <string name="style_label">Stil</string>
     <string name="style_local_hint">Die lokale Verarbeitung wendet keine Stile an</string>
@@ -107,6 +109,22 @@
     <string name="cd_copy">Kopieren</string>
     <string name="cd_share">Teilen</string>
     <string name="cd_delete">Löschen</string>
+    <string name="cd_edit">Bearbeiten</string>
+    <string name="note_edit_title">Notiz bearbeiten</string>
+    <string name="note_delete_title">Notiz löschen?</string>
+    <string name="note_delete_body">Die Notiz lässt sich nicht wiederherstellen.</string>
+    <string name="notes_clear_title">Alle Notizen löschen?</string>
+    <string name="notes_clear_body">Alle %1$d Notizen werden gelöscht. Sie lassen sich nicht wiederherstellen, und „Mein Stil“ bleibt ohne Beispiele.</string>
+
+    <!-- Spiel -->
+    <string name="cd_game">Spiel 2048</string>
+    <string name="game_title">2048</string>
+    <string name="game_score">Punkte</string>
+    <string name="game_best">Rekord</string>
+    <string name="game_new">Neues Spiel</string>
+    <string name="game_hint">Wische in eine Richtung — gleiche Kacheln verschmelzen</string>
+    <string name="game_won">2048! Du kannst weiterspielen</string>
+    <string name="game_over">Keine Züge mehr</string>
 
     <!-- Systemaktionen -->
     <string name="copy_toast">Kopiert</string>

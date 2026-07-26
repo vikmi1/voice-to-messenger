@@ -36,6 +36,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     val notes: StateFlow<List<Note>> = container.notes.notes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val gameBest: StateFlow<Int> = container.settings.gameBest
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     /** Короткие сообщения для снекбара. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
@@ -105,12 +108,23 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    fun updateNote(id: Long, text: String) {
+        viewModelScope.launch { container.notes.updateText(id, text) }
+    }
+
     fun deleteNote(id: Long) {
         viewModelScope.launch { container.notes.delete(id) }
     }
 
     fun clearNotes() {
         viewModelScope.launch { container.notes.deleteAll() }
+    }
+
+    // --- Игра -------------------------------------------------------------
+
+    /** Рекорд обновляется только вверх — проверка внутри репозитория. */
+    fun saveGameBest(score: Int) {
+        viewModelScope.launch { container.settings.setGameBest(score) }
     }
 
     // --- Настройки --------------------------------------------------------

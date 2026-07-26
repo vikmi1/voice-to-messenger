@@ -17,6 +17,7 @@
     <string name="action_save_note">В заметки</string>
     <string name="action_new_message">Новое сообщение</string>
     <string name="action_cancel">Отмена</string>
+    <string name="action_delete">Удалить</string>
 
     <!-- Главный экран -->
     <string name="setup_title">Сервер не настроен</string>
@@ -26,7 +27,7 @@
 
     <string name="status_idle">Нажми и наговори сообщение</string>
     <string name="status_paused">Пауза — нажми «Продолжить»</string>
-    <string name="status_listening">Слушаю… нажми «Стоп», когда закончишь</string>
+    <string name="status_listening">Слушаю… нажми «Готово», когда закончишь</string>
     <string name="status_transcribing">Расшифровываю запись…</string>
     <string name="status_processing">Готовлю сообщение…</string>
     <string name="status_done">Готово — проверь и отправь</string>
@@ -34,13 +35,14 @@
 
     <string name="rec_resume">"  Продолжить"</string>
     <string name="rec_pause">"  Пауза"</string>
-    <string name="rec_stop">"  Стоп"</string>
+    <string name="rec_stop">"  Готово"</string>
     <string name="rec_cancel">Отменить запись</string>
     <string name="rec_pause_hint">Пауза работает только при распознавании на сервере — переключается в настройках</string>
 
     <string name="type_label">Тип</string>
     <string name="type_message">Сообщение</string>
     <string name="type_list">Список</string>
+    <string name="type_locked_hint">Тип выбирается до записи: список получится только из того, что наговорено списком. Нажми «Новое сообщение», чтобы сменить.</string>
 
     <string name="style_label">Стиль</string>
     <string name="style_local_hint">Локальная обработка стили не применяет</string>
@@ -109,6 +111,22 @@
     <string name="cd_copy">Копировать</string>
     <string name="cd_share">Поделиться</string>
     <string name="cd_delete">Удалить</string>
+    <string name="cd_edit">Редактировать</string>
+    <string name="note_edit_title">Правка заметки</string>
+    <string name="note_delete_title">Удалить заметку?</string>
+    <string name="note_delete_body">Заметку не восстановить.</string>
+    <string name="notes_clear_title">Удалить все заметки?</string>
+    <string name="notes_clear_body">Будут стёрты все %1$d заметок. Восстановить их нельзя, и «Мой стиль» останется без примеров.</string>
+
+    <!-- Игра -->
+    <string name="cd_game">Игра 2048</string>
+    <string name="game_title">2048</string>
+    <string name="game_score">Счёт</string>
+    <string name="game_best">Рекорд</string>
+    <string name="game_new">Новая игра</string>
+    <string name="game_hint">Свайпай в любую сторону — одинаковые плитки складываются</string>
+    <string name="game_won">2048! Можно играть дальше</string>
+    <string name="game_over">Ходов больше нет</string>
 
     <!-- Системные действия -->
     <string name="copy_toast">Скопировано</string>

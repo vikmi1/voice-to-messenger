@@ -29,6 +29,11 @@ interface NoteDao {
     @Insert
     suspend fun insert(note: Note): Long
 
+    // Правим только текст: createdAt — момент диктовки, он не должен уезжать от правок,
+    // иначе заметка прыгает в начало списка и путает порядок.
+    @Query("UPDATE notes SET text = :text WHERE id = :id")
+    suspend fun updateText(id: Long, text: String)
+
     @Query("DELETE FROM notes WHERE id = :id")
     suspend fun delete(id: Long)
 
@@ -61,6 +66,12 @@ class NotesRepository(private val dao: NoteDao) {
     suspend fun add(text: String) {
         val trimmed = text.trim()
         if (trimmed.isNotEmpty()) dao.insert(Note(text = trimmed))
+    }
+
+    /** Пустой текст не сохраняем: это молчаливое удаление заметки, а его просят явно. */
+    suspend fun updateText(id: Long, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isNotEmpty()) dao.updateText(id, trimmed)
     }
 
     suspend fun delete(id: Long) = dao.delete(id)

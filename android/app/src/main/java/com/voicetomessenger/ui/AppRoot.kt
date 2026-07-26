@@ -14,6 +14,7 @@ private object Routes {
     const val NOTES = "notes"
     const val SETTINGS = "settings"
     const val ADMIN = "admin"
+    const val GAME = "game"
 }
 
 @Composable
@@ -27,10 +28,14 @@ fun AppRoot(viewModel: MainViewModel) {
                     viewModel = viewModel,
                     onOpenNotes = { navController.navigate(Routes.NOTES) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                    onOpenGame = { navController.navigate(Routes.GAME) },
                 )
             }
             composable(Routes.NOTES) {
                 NotesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.GAME) {
+                Game2048Screen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(

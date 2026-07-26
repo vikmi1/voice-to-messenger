@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Mic
@@ -95,6 +96,7 @@ fun MainScreen(
     viewModel: MainViewModel,
     onOpenNotes: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenGame: () -> Unit,
 ) {
     val context = LocalContext.current
     val capture by viewModel.capture.collectAsState()
@@ -130,11 +132,21 @@ fun MainScreen(
         capture is CaptureState.Done || capture is CaptureState.Failed
     val optionsEnabled = serverMode && idleForOptions
 
+    // Тип — единственная опция, которая меняет содержание, а не подачу: из речи,
+    // наговорённой сплошным текстом, список не «появится» — модель его сочинит.
+    // Поэтому после старта записи тип заперт до «Нового сообщения», в отличие от
+    // стиля/перевода/эмодзи, которые лишь по-разному подают одно и то же.
+    val typeLocked = capture !is CaptureState.Idle && capture !is CaptureState.Failed
+    val typeEnabled = serverMode && !typeLocked
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onOpenGame) {
+                        Icon(Icons.Default.Casino, contentDescription = stringResource(R.string.cd_game))
+                    }
                     IconButton(onClick = onOpenNotes) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.cd_notes))
                     }
@@ -172,7 +184,12 @@ fun MainScreen(
 
             MicSection(capture = capture, onClick = onMicClick)
 
-            TypeRow(asList = settings.asList, enabled = optionsEnabled, onSelect = viewModel::setListMode)
+            TypeRow(
+                asList = settings.asList,
+                enabled = typeEnabled,
+                showLockedHint = serverMode && typeLocked,
+                onSelect = viewModel::setListMode,
+            )
 
             StyleRow(
                 styles = options.styles,
@@ -371,7 +388,12 @@ private fun statusText(capture: CaptureState): String = when (capture) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TypeRow(asList: Boolean, enabled: Boolean, onSelect: (Boolean) -> Unit) {
+private fun TypeRow(
+    asList: Boolean,
+    enabled: Boolean,
+    showLockedHint: Boolean,
+    onSelect: (Boolean) -> Unit,
+) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.type_label), style = MaterialTheme.typography.labelLarge)
         FlowRow(
@@ -390,6 +412,14 @@ private fun TypeRow(asList: Boolean, enabled: Boolean, onSelect: (Boolean) -> Un
                 onClick = { onSelect(true) },
                 enabled = enabled,
                 label = { Text(stringResource(R.string.type_list)) },
+            )
+        }
+        // Без пояснения серые чипы читаются как поломка, а не как осознанный запрет.
+        if (showLockedHint) {
+            Text(
+                stringResource(R.string.type_locked_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

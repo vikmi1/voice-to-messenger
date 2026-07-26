@@ -4,6 +4,7 @@ import com.voicetomessenger.data.Language
 import com.voicetomessenger.data.Options
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.data.Style
+import com.voicetomessenger.processing.ProcessRequest
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -41,12 +42,15 @@ class BackendClient(private val settings: SettingsRepository) {
         .build()
 
     /** Текст → готовое сообщение. Эмитит куски ответа по мере их прихода. */
-    fun processStream(text: String, styleId: String, targetLang: String): Flow<String> = flow {
+    fun processStream(request: ProcessRequest): Flow<String> = flow {
         val (base, token) = credentials()
         val payload = JSONObject()
-            .put("text", text)
-            .put("style", styleId)
-            .put("target_lang", targetLang)
+            .put("text", request.raw)
+            .put("style", request.styleId)
+            .put("target_lang", request.targetLang)
+            .put("as_list", request.asList)
+            .put("emoji", request.emoji)
+            .put("examples", JSONArray(request.examples))
             .toString()
             .toRequestBody(JSON)
 

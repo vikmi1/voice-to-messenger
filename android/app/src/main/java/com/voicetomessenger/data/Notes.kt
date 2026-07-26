@@ -23,6 +23,9 @@ interface NoteDao {
     @Query("SELECT * FROM notes ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<Note>>
 
+    @Query("SELECT text FROM notes ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recentTexts(limit: Int): List<String>
+
     @Insert
     suspend fun insert(note: Note): Long
 
@@ -51,6 +54,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 class NotesRepository(private val dao: NoteDao) {
     val notes: Flow<List<Note>> = dao.observeAll()
+
+    /** Тексты последних заметок — примеры для стиля «Мой стиль». */
+    suspend fun recentTexts(limit: Int): List<String> = dao.recentTexts(limit)
 
     suspend fun add(text: String) {
         val trimmed = text.trim()

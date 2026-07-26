@@ -113,6 +113,14 @@ def make_provider(name: str, prov: dict):
     return OpenAICompatibleProvider(prov["base_url"], api_key, prov["model"])
 
 
+def _examples(data: dict) -> list[str]:
+    """Few-shot-примеры для «Моего стиля»: не больше 8 непустых строк из тела запроса."""
+    raw = data.get("examples")
+    if not isinstance(raw, list):
+        return []
+    return [str(e).strip() for e in raw if str(e).strip()][:8]
+
+
 # --- Публичные эндпоинты для приложения ------------------------------------
 
 @app.get("/")
@@ -129,11 +137,14 @@ def api_process():
     if not text:
         return jsonify(error="empty text"), 400
 
-    style_id = data.get("style") or "neutral"
+    style_id = data.get("style") or "mine"
     target = data.get("target_lang") or "off"
     style_prompt = next((s["prompt"] for s in cfg["styles"] if s["id"] == style_id), "")
     lang_name = next((l["name"] for l in cfg["languages"] if l["code"] == target), target)
-    system = build_system(cfg["base_prompt"], style_prompt, target, lang_name)
+    system = build_system(
+        cfg["base_prompt"], style_prompt, target, lang_name,
+        examples=_examples(data), emoji=bool(data.get("emoji")), as_list=bool(data.get("as_list")),
+    )
 
     prov = cfg["providers"][cfg["active_provider"]]
     provider = make_provider(cfg["active_provider"], prov)
@@ -265,11 +276,14 @@ def admin_test():
     if data.get("model"):
         prov = {**prov, "model": data["model"]}
 
-    style_id = data.get("style") or "neutral"
+    style_id = data.get("style") or "mine"
     target = data.get("target_lang") or "off"
     style_prompt = next((s["prompt"] for s in cfg["styles"] if s["id"] == style_id), "")
     lang_name = next((l["name"] for l in cfg["languages"] if l["code"] == target), target)
-    system = build_system(cfg["base_prompt"], style_prompt, target, lang_name)
+    system = build_system(
+        cfg["base_prompt"], style_prompt, target, lang_name,
+        examples=_examples(data), emoji=bool(data.get("emoji")), as_list=bool(data.get("as_list")),
+    )
 
     try:
         result = "".join(make_provider(name, prov).stream(system, text))

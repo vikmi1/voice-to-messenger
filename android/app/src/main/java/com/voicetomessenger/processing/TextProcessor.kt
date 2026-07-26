@@ -5,26 +5,40 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 /**
+ * Всё, что нужно бэкенду для одной обработки текста.
+ *
+ * [examples] заполняются только для стиля «Мой стиль» — это сообщения самого
+ * пользователя, по которым модель подстраивает тон.
+ */
+data class ProcessRequest(
+    val raw: String,
+    val styleId: String,
+    val targetLang: String,
+    val asList: Boolean = false,
+    val emoji: Boolean = false,
+    val examples: List<String> = emptyList(),
+)
+
+/**
  * Сырой текст → готовое сообщение.
  *
  * Результат отдаётся потоком: серверный режим стримит ответ LLM по кускам,
  * локальный — эмитит готовую строку разом.
  */
 interface TextProcessor {
-    fun process(raw: String, styleId: String, targetLang: String): Flow<String>
+    fun process(request: ProcessRequest): Flow<String>
 }
 
-/** Обработка на бэкенде: системный промпт, стили, перевод. */
+/** Обработка на бэкенде: системный промпт, стили, примеры, эмодзи, список, перевод. */
 class ServerProcessor(private val client: BackendClient) : TextProcessor {
-    override fun process(raw: String, styleId: String, targetLang: String): Flow<String> =
-        client.processStream(raw, styleId, targetLang)
+    override fun process(request: ProcessRequest): Flow<String> = client.processStream(request)
 }
 
 /**
  * Обработка на устройстве. Пока это чистка текста без LLM — заглушка под
- * будущую локальную модель; стиль и перевод игнорируются.
+ * будущую локальную модель; стиль, перевод, эмодзи и список игнорируются.
  */
 class LocalProcessor : TextProcessor {
-    override fun process(raw: String, styleId: String, targetLang: String): Flow<String> =
-        flowOf(LocalTextCleaner.clean(raw))
+    override fun process(request: ProcessRequest): Flow<String> =
+        flowOf(LocalTextCleaner.clean(request.raw))
 }

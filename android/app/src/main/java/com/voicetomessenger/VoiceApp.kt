@@ -36,6 +36,7 @@ class AppContainer(private val context: Context) {
         scope = scope,
         settings = settings,
         backend = backend,
+        notes = notes,
         recognizer = OnDeviceRecognizer(context),
         recorder = AudioRecorder(context),
     )

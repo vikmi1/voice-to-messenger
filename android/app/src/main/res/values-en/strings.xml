@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bubble / notification -->
+    <string name="bubble_channel_name">Record button</string>
+    <string name="bubble_notification_title">Bubble active</string>
+    <string name="bubble_notification_text">Tap the button over the screen to dictate a message</string>
+    <string name="bubble_stop">Turn off</string>
+
+    <!-- Common -->
+    <string name="cd_back">Back</string>
+    <string name="cd_notes">Notes</string>
+    <string name="cd_settings">Settings</string>
+    <string name="action_copy">"  Copy"</string>
+    <string name="action_share">"  Share"</string>
+    <string name="action_save_note">To notes</string>
+    <string name="action_new_message">New message</string>
+    <string name="action_cancel">Cancel</string>
+
+    <!-- Main screen -->
+    <string name="setup_title">Server not set up</string>
+    <string name="setup_body">Enter the backend address and API token from the admin panel — or switch to local processing in settings.</string>
+    <string name="setup_open">Open settings</string>
+    <string name="mic_start_cd">Start recording</string>
+
+    <string name="status_idle">Tap and speak your message</string>
+    <string name="status_paused">Paused — tap “Resume”</string>
+    <string name="status_listening">Listening… tap “Stop” when you’re done</string>
+    <string name="status_transcribing">Transcribing the recording…</string>
+    <string name="status_processing">Preparing the message…</string>
+    <string name="status_done">Done — check and send</string>
+    <string name="status_failed">Didn’t work</string>
+
+    <string name="rec_resume">"  Resume"</string>
+    <string name="rec_pause">"  Pause"</string>
+    <string name="rec_stop">"  Stop"</string>
+    <string name="rec_pause_hint">Pause works only with server recognition — switch it in settings</string>
+
+    <string name="type_label">Type</string>
+    <string name="type_message">Message</string>
+    <string name="type_list">List</string>
+
+    <string name="style_label">Style</string>
+    <string name="style_local_hint">Local processing doesn’t apply styles</string>
+
+    <string name="emoji_on">😊 Emojis on</string>
+    <string name="emoji_off">😊 Add emojis</string>
+
+    <string name="translate_label">Translation</string>
+
+    <string name="raw_show">Show original text</string>
+    <string name="raw_hide">Hide original text</string>
+
+    <string name="result_label">Ready message</string>
+    <string name="result_streaming">Still being written…</string>
+    <string name="error_retry">Try again</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_server">Server</string>
+    <string name="server_url_label">Backend address</string>
+    <string name="api_token_label">API token</string>
+    <string name="api_token_support">“App” tab in the admin panel</string>
+    <string name="action_save">Save</string>
+    <string name="action_check_connection">Check connection</string>
+
+    <string name="settings_asr">Speech recognition</string>
+    <string name="asr_on_device">System</string>
+    <string name="asr_server">Whisper on the server</string>
+    <string name="asr_on_device_desc">Fast and without uploading audio to our server. Language is chosen manually; the system service recognizes it (Google’s may use the cloud).</string>
+    <string name="asr_server_desc">Audio goes to the backend and is deleted right after transcription. Higher quality and detects the language itself.</string>
+    <string name="asr_lang_label">Dictation language</string>
+
+    <string name="settings_processing">Text processing</string>
+    <string name="proc_server">Server (LLM)</string>
+    <string name="proc_local">Local</string>
+    <string name="proc_server_desc">Styles, translation and full rewrite — the text goes to the backend.</string>
+    <string name="proc_local_desc">Offline: cleanup of filler words and punctuation. Styles and translation don’t work.</string>
+
+    <string name="settings_bubble">Button over other apps</string>
+    <string name="bubble_toggle">Show bubble</string>
+    <string name="bubble_desc">The mic button floats over messengers: tap — speak — the ready text goes to the clipboard, just paste it in.</string>
+    <string name="bubble_permission">Allow display over other apps</string>
+
+    <string name="settings_admin">Admin</string>
+    <string name="admin_open">Open server settings panel</string>
+    <string name="version_line">Voice-to-Messenger %1$s</string>
+    <string name="admin_dialog_title">Admin access</string>
+    <string name="admin_token_label">Admin token</string>
+    <string name="admin_token_hint">“App” tab in the web panel /admin.</string>
+    <string name="action_login">Log in</string>
+
+    <!-- Notes -->
+    <string name="notes_clear_cd">Delete all</string>
+    <string name="notes_empty">Empty for now. Save a ready message with “To notes”.</string>
+    <string name="cd_copy">Copy</string>
+    <string name="cd_share">Share</string>
+    <string name="cd_delete">Delete</string>
+
+    <!-- System actions -->
+    <string name="copy_toast">Copied</string>
+    <string name="share_chooser">Send message</string>
+</resources>

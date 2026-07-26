@@ -3,11 +3,13 @@ package com.voicetomessenger.capture
 import com.voicetomessenger.asr.AudioRecorder
 import com.voicetomessenger.asr.OnDeviceRecognizer
 import com.voicetomessenger.data.AsrMode
+import com.voicetomessenger.data.NotesRepository
 import com.voicetomessenger.data.ProcessingMode
 import com.voicetomessenger.data.Settings
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.net.BackendClient
 import com.voicetomessenger.processing.LocalProcessor
+import com.voicetomessenger.processing.ProcessRequest
 import com.voicetomessenger.processing.ServerProcessor
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -62,6 +64,7 @@ class VoicePipeline(
     private val scope: CoroutineScope,
     private val settings: SettingsRepository,
     private val backend: BackendClient,
+    private val notes: NotesRepository,
     private val recognizer: OnDeviceRecognizer,
     private val recorder: AudioRecorder,
 ) {
@@ -88,6 +91,8 @@ class VoicePipeline(
         val raw: String,
         val styleId: String,
         val targetLang: String,
+        val asList: Boolean,
+        val emoji: Boolean,
         val processingMode: ProcessingMode,
     )
 
@@ -278,11 +283,12 @@ class VoicePipeline(
             ProcessingMode.SERVER -> ServerProcessor(backend)
             ProcessingMode.LOCAL -> LocalProcessor()
         }
+        val request = buildRequest(raw, current)
 
         _state.value = CaptureState.Processing(raw, "")
         val builder = StringBuilder()
         try {
-            processor.process(raw, current.styleId, current.targetLang).collect { chunk ->
+            processor.process(request).collect { chunk ->
                 builder.append(chunk)
                 _state.value = CaptureState.Processing(raw, builder.toString())
             }
@@ -303,7 +309,24 @@ class VoicePipeline(
     }
 
     private fun keyFor(raw: String, settings: Settings) =
-        ResultKey(raw, settings.styleId, settings.targetLang, settings.processingMode)
+        ResultKey(raw, settings.styleId, settings.targetLang, settings.asList, settings.emoji, settings.processingMode)
+
+    /** Собирает запрос к обработчику. Для «Моего стиля» подтягивает примеры из заметок. */
+    private suspend fun buildRequest(raw: String, s: Settings): ProcessRequest {
+        val examples = if (s.styleId == MY_STYLE_ID) {
+            notes.recentTexts(EXAMPLE_LIMIT).filter { it.length in EXAMPLE_MIN_LEN..EXAMPLE_MAX_LEN }
+        } else {
+            emptyList()
+        }
+        return ProcessRequest(
+            raw = raw,
+            styleId = s.styleId,
+            targetLang = s.targetLang,
+            asList = s.asList,
+            emoji = s.emoji,
+            examples = examples,
+        )
+    }
 
     private fun updateListening(transform: (CaptureState.Listening) -> CaptureState.Listening) {
         val current = _state.value
@@ -315,5 +338,13 @@ class VoicePipeline(
 
         /** Пауза перед запросом, чтобы быстрый перебор чипов не улетал на сервер целиком. */
         const val REPROCESS_DEBOUNCE_MS = 350L
+
+        /** id стиля, который берёт тон из примеров-заметок пользователя. */
+        const val MY_STYLE_ID = "mine"
+
+        /** Сколько последних заметок брать как примеры и какой длины (в символах). */
+        const val EXAMPLE_LIMIT = 5
+        const val EXAMPLE_MIN_LEN = 3
+        const val EXAMPLE_MAX_LEN = 400
     }
 }

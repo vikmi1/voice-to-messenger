@@ -42,6 +42,16 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         viewModelScope.launch { container.refreshOptions() }
+        viewModelScope.launch {
+            // После перехода на три стиля сохранённый ранее id («neutral»/«short») может
+            // отсутствовать в наборе — тогда ни один чип не подсвечен. Берём первый доступный.
+            container.settings.options.collect { opts ->
+                val current = container.settings.current().styleId
+                if (opts.styles.isNotEmpty() && opts.styles.none { it.id == current }) {
+                    container.settings.setStyle(opts.styles.first().id)
+                }
+            }
+        }
     }
 
     // --- Диктовка ---------------------------------------------------------
@@ -68,6 +78,20 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     fun selectTargetLang(code: String) {
         viewModelScope.launch {
             container.settings.setTargetLang(code)
+            pipeline.reprocess()
+        }
+    }
+
+    fun setListMode(asList: Boolean) {
+        viewModelScope.launch {
+            container.settings.setAsList(asList)
+            pipeline.reprocess()
+        }
+    }
+
+    fun setEmoji(emoji: Boolean) {
+        viewModelScope.launch {
+            container.settings.setEmoji(emoji)
             pipeline.reprocess()
         }
     }

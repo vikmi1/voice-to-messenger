@@ -21,8 +21,12 @@ enum class ProcessingMode {
 data class Settings(
     val serverUrl: String = "",
     val apiToken: String = "",
-    val styleId: String = "neutral",
+    val styleId: String = "mine",
     val targetLang: String = "off",
+    /** Оформить готовое сообщение списком-чек-листом вместо сплошного текста. */
+    val asList: Boolean = false,
+    /** ИИ сам расставляет уместные эмодзи по смыслу. */
+    val emoji: Boolean = false,
     val asrMode: AsrMode = AsrMode.ON_DEVICE,
     /** BCP-47 тег для распознавания на устройстве. */
     val asrLanguage: String = "ru-RU",
@@ -54,10 +58,9 @@ data class Options(
     companion object {
         val DEFAULT = Options(
             styles = listOf(
-                Style("neutral", "Нейтрально"),
-                Style("short", "Кратко"),
+                Style("mine", "Мой стиль"),
                 Style("friendly", "Дружелюбно"),
-                Style("business", "Делово"),
+                Style("business", "Деловой"),
             ),
             languages = listOf(
                 Language("off", "Без перевода"),

@@ -31,12 +31,45 @@ DEFAULT_BASE_PROMPT = (
 )
 
 
-def build_system(base_prompt: str, style_prompt: str, target_lang: str, target_lang_name: str) -> str:
-    """Собирает системный промпт из базового, стиля и (опционально) перевода."""
+def build_system(
+    base_prompt: str,
+    style_prompt: str,
+    target_lang: str,
+    target_lang_name: str,
+    examples: list[str] | None = None,
+    emoji: bool = False,
+    as_list: bool = False,
+) -> str:
+    """Собирает системный промпт из базового, стиля, примеров и (опционально) перевода.
+
+    examples — сообщения самого пользователя для стиля «Мой стиль»: модель подражает
+    их тону. emoji/as_list — переключатели «расставь эмодзи» и «оформи списком».
+    """
     parts = [(base_prompt or DEFAULT_BASE_PROMPT).strip()]
 
     if style_prompt and style_prompt.strip():
         parts.append("Тон и стиль: " + style_prompt.strip())
+
+    sample = "\n".join(f"— {e.strip()}" for e in (examples or []) if e and e.strip())
+    if sample:
+        parts.append(
+            "Ниже — примеры сообщений самого пользователя. Подражай их тону, манере, "
+            "типичной длине и выбору слов, но пиши строго по смыслу текущей надиктовки и "
+            "ничего из примеров не копируй дословно:\n" + sample
+        )
+
+    if emoji:
+        parts.append(
+            "Расставь уместные эмодзи по смыслу — умеренно, только там, где это естественно "
+            "усиливает сообщение. Не лепи эмодзи в каждую строку и не начинай ими сообщение."
+        )
+
+    if as_list:
+        parts.append(
+            "Оформи результат как список: каждый пункт с новой строки, в начале строки — «☐ » "
+            "(символ пустого чекбокса и пробел). Без нумерации, без вступления и заключения — "
+            "только сами пункты по сути надиктовки."
+        )
 
     if target_lang and target_lang != "off":
         name = target_lang_name or target_lang

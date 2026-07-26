@@ -57,12 +57,12 @@ def _default_config() -> dict:
         },
         "base_prompt": DEFAULT_BASE_PROMPT,
         "styles": [
-            {"id": "neutral", "name": "Нейтрально", "prompt": "нейтральный, спокойный тон."},
-            {"id": "short", "name": "Кратко",
-             "prompt": "максимально кратко и по делу, убери второстепенное, сохрани суть и ключевые факты."},
+            # «Мой стиль» — пустой prompt: тон задаётся few-shot-примерами сообщений
+            # самого пользователя, которые приложение шлёт в поле examples.
+            {"id": "mine", "name": "Мой стиль", "prompt": ""},
             {"id": "friendly", "name": "Дружелюбно",
              "prompt": "тёплый, дружелюбный тон, естественный для личной переписки."},
-            {"id": "business", "name": "Делово",
+            {"id": "business", "name": "Деловой",
              "prompt": "деловой и вежливый тон, при необходимости структурируй; подходит для рабочего чата."},
         ],
         "languages": [
@@ -95,6 +95,13 @@ def _migrate(cfg: dict) -> bool:
 
     if "anthropic" not in providers:
         providers["anthropic"] = _default_config()["providers"]["anthropic"]
+        changed = True
+
+    # Переход на три стиля с «Моим стилем». Признак старого набора — отсутствие id "mine".
+    # Заменяем только дефолтный набор; если админ уже завёл свой стиль mine — не трогаем.
+    styles = cfg.get("styles") or []
+    if not any(s.get("id") == "mine" for s in styles):
+        cfg["styles"] = _default_config()["styles"]
         changed = True
 
     return changed

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Blase / Benachrichtigung -->
+    <string name="bubble_channel_name">Aufnahmeknopf</string>
+    <string name="bubble_notification_title">Aufnahmeblase aktiv</string>
+    <string name="bubble_notification_text">Tippe auf den Knopf über dem Bildschirm, um eine Nachricht zu diktieren</string>
+    <string name="bubble_stop">Ausschalten</string>
+
+    <!-- Allgemein -->
+    <string name="cd_back">Zurück</string>
+    <string name="cd_notes">Notizen</string>
+    <string name="cd_settings">Einstellungen</string>
+    <string name="action_copy">"  Kopieren"</string>
+    <string name="action_share">"  Teilen"</string>
+    <string name="action_save_note">Zu Notizen</string>
+    <string name="action_new_message">Neue Nachricht</string>
+    <string name="action_cancel">Abbrechen</string>
+
+    <!-- Hauptbildschirm -->
+    <string name="setup_title">Server nicht eingerichtet</string>
+    <string name="setup_body">Gib die Backend-Adresse und das API-Token aus dem Admin-Panel ein — oder wechsle in den Einstellungen zur lokalen Verarbeitung.</string>
+    <string name="setup_open">Einstellungen öffnen</string>
+    <string name="mic_start_cd">Aufnahme starten</string>
+
+    <string name="status_idle">Tippe und sprich deine Nachricht</string>
+    <string name="status_paused">Pause — tippe auf „Fortsetzen“</string>
+    <string name="status_listening">Ich höre zu … tippe auf „Stopp“, wenn du fertig bist</string>
+    <string name="status_transcribing">Aufnahme wird transkribiert …</string>
+    <string name="status_processing">Nachricht wird vorbereitet …</string>
+    <string name="status_done">Fertig — prüfen und senden</string>
+    <string name="status_failed">Fehlgeschlagen</string>
+
+    <string name="rec_resume">"  Fortsetzen"</string>
+    <string name="rec_pause">"  Pause"</string>
+    <string name="rec_stop">"  Stopp"</string>
+    <string name="rec_pause_hint">Pause funktioniert nur bei der Server-Erkennung — umschaltbar in den Einstellungen</string>
+
+    <string name="type_label">Typ</string>
+    <string name="type_message">Nachricht</string>
+    <string name="type_list">Liste</string>
+
+    <string name="style_label">Stil</string>
+    <string name="style_local_hint">Die lokale Verarbeitung wendet keine Stile an</string>
+
+    <string name="emoji_on">😊 Emojis an</string>
+    <string name="emoji_off">😊 Emojis hinzufügen</string>
+
+    <string name="translate_label">Übersetzung</string>
+
+    <string name="raw_show">Originaltext anzeigen</string>
+    <string name="raw_hide">Originaltext ausblenden</string>
+
+    <string name="result_label">Fertige Nachricht</string>
+    <string name="result_streaming">Text wird noch geschrieben …</string>
+    <string name="error_retry">Erneut versuchen</string>
+
+    <!-- Einstellungen -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_server">Server</string>
+    <string name="server_url_label">Backend-Adresse</string>
+    <string name="api_token_label">API-Token</string>
+    <string name="api_token_support">Reiter „App“ im Admin-Panel</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_check_connection">Verbindung prüfen</string>
+
+    <string name="settings_asr">Spracherkennung</string>
+    <string name="asr_on_device">System</string>
+    <string name="asr_server">Whisper auf dem Server</string>
+    <string name="asr_on_device_desc">Schnell und ohne Audio-Upload auf unseren Server. Sprache wird manuell gewählt; erkannt wird über den Systemdienst (bei Google ggf. in der Cloud).</string>
+    <string name="asr_server_desc">Audio geht ans Backend und wird direkt nach der Transkription gelöscht. Bessere Qualität und erkennt die Sprache selbst.</string>
+    <string name="asr_lang_label">Diktatsprache</string>
+
+    <string name="settings_processing">Textverarbeitung</string>
+    <string name="proc_server">Server (LLM)</string>
+    <string name="proc_local">Lokal</string>
+    <string name="proc_server_desc">Stile, Übersetzung und vollständiges Umschreiben — der Text geht ans Backend.</string>
+    <string name="proc_local_desc">Ohne Netz: Bereinigung von Füllwörtern und Zeichensetzung. Stile und Übersetzung funktionieren nicht.</string>
+
+    <string name="settings_bubble">Knopf über anderen Apps</string>
+    <string name="bubble_toggle">Blase anzeigen</string>
+    <string name="bubble_desc">Der Mikrofonknopf schwebt über Messengern: tippen — sprechen — der fertige Text liegt in der Zwischenablage, nur noch einfügen.</string>
+    <string name="bubble_permission">Anzeige über anderen Apps erlauben</string>
+
+    <string name="settings_admin">Admin</string>
+    <string name="admin_open">Server-Einstellungen öffnen</string>
+    <string name="version_line">Voice-to-Messenger %1$s</string>
+    <string name="admin_dialog_title">Admin-Zugang</string>
+    <string name="admin_token_label">Admin-Token</string>
+    <string name="admin_token_hint">Reiter „App“ im Web-Panel /admin.</string>
+    <string name="action_login">Anmelden</string>
+
+    <!-- Notizen -->
+    <string name="notes_clear_cd">Alle löschen</string>
+    <string name="notes_empty">Noch leer. Speichere eine fertige Nachricht über „Zu Notizen“.</string>
+    <string name="cd_copy">Kopieren</string>
+    <string name="cd_share">Teilen</string>
+    <string name="cd_delete">Löschen</string>
+
+    <!-- Systemaktionen -->
+    <string name="copy_toast">Kopiert</string>
+    <string name="share_chooser">Nachricht senden</string>
+</resources>

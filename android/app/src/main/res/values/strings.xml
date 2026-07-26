@@ -1,8 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Voice-to-Messenger</string>
+
+    <!-- Пузырь / уведомление -->
     <string name="bubble_channel_name">Кнопка записи</string>
     <string name="bubble_notification_title">Пузырь активен</string>
     <string name="bubble_notification_text">Нажми на кнопку поверх экрана, чтобы надиктовать сообщение</string>
     <string name="bubble_stop">Выключить</string>
+
+    <!-- Общее -->
+    <string name="cd_back">Назад</string>
+    <string name="cd_notes">Заметки</string>
+    <string name="cd_settings">Настройки</string>
+    <string name="action_copy">"  Копировать"</string>
+    <string name="action_share">"  Поделиться"</string>
+    <string name="action_save_note">В заметки</string>
+    <string name="action_new_message">Новое сообщение</string>
+    <string name="action_cancel">Отмена</string>
+
+    <!-- Главный экран -->
+    <string name="setup_title">Сервер не настроен</string>
+    <string name="setup_body">Укажи адрес бэкенда и API-токен из админ-панели — или переключись на локальную обработку в настройках.</string>
+    <string name="setup_open">Открыть настройки</string>
+    <string name="mic_start_cd">Начать запись</string>
+
+    <string name="status_idle">Нажми и наговори сообщение</string>
+    <string name="status_paused">Пауза — нажми «Продолжить»</string>
+    <string name="status_listening">Слушаю… нажми «Стоп», когда закончишь</string>
+    <string name="status_transcribing">Расшифровываю запись…</string>
+    <string name="status_processing">Готовлю сообщение…</string>
+    <string name="status_done">Готово — проверь и отправь</string>
+    <string name="status_failed">Не получилось</string>
+
+    <string name="rec_resume">"  Продолжить"</string>
+    <string name="rec_pause">"  Пауза"</string>
+    <string name="rec_stop">"  Стоп"</string>
+    <string name="rec_pause_hint">Пауза работает только при распознавании на сервере — переключается в настройках</string>
+
+    <string name="type_label">Тип</string>
+    <string name="type_message">Сообщение</string>
+    <string name="type_list">Список</string>
+
+    <string name="style_label">Стиль</string>
+    <string name="style_local_hint">Локальная обработка стили не применяет</string>
+
+    <string name="emoji_on">😊 Эмодзи включены</string>
+    <string name="emoji_off">😊 Добавить эмодзи</string>
+
+    <string name="translate_label">Перевод</string>
+
+    <string name="raw_show">Показать исходный текст</string>
+    <string name="raw_hide">Скрыть исходный текст</string>
+
+    <string name="result_label">Готовое сообщение</string>
+    <string name="result_streaming">Текст ещё дописывается…</string>
+    <string name="error_retry">Попробовать снова</string>
+
+    <!-- Настройки -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_server">Сервер</string>
+    <string name="server_url_label">Адрес бэкенда</string>
+    <string name="api_token_label">API-токен</string>
+    <string name="api_token_support">Вкладка «Приложение» в админ-панели</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_check_connection">Проверить связь</string>
+
+    <string name="settings_asr">Распознавание речи</string>
+    <string name="asr_on_device">Системное</string>
+    <string name="asr_server">Whisper на сервере</string>
+    <string name="asr_on_device_desc">Быстро и без загрузки аудио на наш сервер. Язык выбирается вручную; распознаёт системный сервис (у Google он может обращаться в облако).</string>
+    <string name="asr_server_desc">Аудио уходит на бэкенд и удаляется сразу после расшифровки. Качественнее и определяет язык сам.</string>
+    <string name="asr_lang_label">Язык диктовки</string>
+
+    <string name="settings_processing">Обработка текста</string>
+    <string name="proc_server">Сервер (LLM)</string>
+    <string name="proc_local">Локально</string>
+    <string name="proc_server_desc">Стили, перевод и полноценный рерайт — текст уходит на бэкенд.</string>
+    <string name="proc_local_desc">Без сети: чистка слов-паразитов и пунктуации. Стили и перевод не работают.</string>
+
+    <string name="settings_bubble">Кнопка поверх приложений</string>
+    <string name="bubble_toggle">Показывать пузырь</string>
+    <string name="bubble_desc">Кнопка микрофона висит поверх мессенджеров: нажал — наговорил — готовый текст лёг в буфер обмена, осталось вставить в поле ввода.</string>
+    <string name="bubble_permission">Разрешить показ поверх приложений</string>
+
+    <string name="settings_admin">Админ</string>
+    <string name="admin_open">Открыть панель настроек сервера</string>
+    <string name="version_line">Voice-to-Messenger %1$s</string>
+    <string name="admin_dialog_title">Админ-доступ</string>
+    <string name="admin_token_label">Админ-токен</string>
+    <string name="admin_token_hint">Вкладка «Приложение» в веб-панели /admin.</string>
+    <string name="action_login">Войти</string>
+
+    <!-- Заметки -->
+    <string name="notes_clear_cd">Удалить все</string>
+    <string name="notes_empty">Пока пусто. Сохрани готовое сообщение кнопкой «В заметки».</string>
+    <string name="cd_copy">Копировать</string>
+    <string name="cd_share">Поделиться</string>
+    <string name="cd_delete">Удалить</string>
+
+    <!-- Системные действия -->
+    <string name="copy_toast">Скопировано</string>
+    <string name="share_chooser">Отправить сообщение</string>
 </resources>

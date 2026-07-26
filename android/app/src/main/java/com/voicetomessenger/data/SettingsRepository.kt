@@ -25,6 +25,8 @@ class SettingsRepository(context: Context) {
         val API_TOKEN = stringPreferencesKey("api_token")
         val STYLE_ID = stringPreferencesKey("style_id")
         val TARGET_LANG = stringPreferencesKey("target_lang")
+        val AS_LIST = booleanPreferencesKey("as_list")
+        val EMOJI = booleanPreferencesKey("emoji")
         val ASR_MODE = stringPreferencesKey("asr_mode")
         val ASR_LANGUAGE = stringPreferencesKey("asr_language")
         val PROCESSING_MODE = stringPreferencesKey("processing_mode")
@@ -40,6 +42,8 @@ class SettingsRepository(context: Context) {
             apiToken = prefs[Keys.API_TOKEN] ?: defaults.apiToken,
             styleId = prefs[Keys.STYLE_ID] ?: defaults.styleId,
             targetLang = prefs[Keys.TARGET_LANG] ?: defaults.targetLang,
+            asList = prefs[Keys.AS_LIST] ?: defaults.asList,
+            emoji = prefs[Keys.EMOJI] ?: defaults.emoji,
             asrMode = prefs[Keys.ASR_MODE]?.toEnum<AsrMode>() ?: defaults.asrMode,
             asrLanguage = prefs[Keys.ASR_LANGUAGE] ?: defaults.asrLanguage,
             processingMode = prefs[Keys.PROCESSING_MODE]?.toEnum<ProcessingMode>()
@@ -65,6 +69,10 @@ class SettingsRepository(context: Context) {
     suspend fun setStyle(id: String) = store.edit { it[Keys.STYLE_ID] = id }
 
     suspend fun setTargetLang(code: String) = store.edit { it[Keys.TARGET_LANG] = code }
+
+    suspend fun setAsList(asList: Boolean) = store.edit { it[Keys.AS_LIST] = asList }
+
+    suspend fun setEmoji(emoji: Boolean) = store.edit { it[Keys.EMOJI] = emoji }
 
     suspend fun setAsrMode(mode: AsrMode) = store.edit { it[Keys.ASR_MODE] = mode.name }
 

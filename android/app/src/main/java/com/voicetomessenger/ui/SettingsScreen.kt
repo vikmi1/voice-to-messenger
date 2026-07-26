@@ -52,12 +52,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.voicetomessenger.BuildConfig
+import com.voicetomessenger.R
 import com.voicetomessenger.bubble.BubbleService
 import com.voicetomessenger.data.AsrMode
 import com.voicetomessenger.data.ON_DEVICE_LANGUAGES
@@ -93,10 +95,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Настройки") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -112,11 +114,11 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Section("Сервер") {
+            Section(stringResource(R.string.settings_server)) {
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text("Адрес бэкенда") },
+                    label = { Text(stringResource(R.string.server_url_label)) },
                     placeholder = { Text("https://voice.example.com") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -124,43 +126,39 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
                 OutlinedTextField(
                     value = token,
                     onValueChange = { token = it },
-                    label = { Text("API-токен") },
-                    supportingText = { Text("Вкладка «Приложение» в админ-панели") },
+                    label = { Text(stringResource(R.string.api_token_label)) },
+                    supportingText = { Text(stringResource(R.string.api_token_support)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.setServer(url, token) }) { Text("Сохранить") }
-                    OutlinedButton(onClick = viewModel::checkConnection) { Text("Проверить связь") }
+                    Button(onClick = { viewModel.setServer(url, token) }) { Text(stringResource(R.string.action_save)) }
+                    OutlinedButton(onClick = viewModel::checkConnection) { Text(stringResource(R.string.action_check_connection)) }
                 }
             }
 
             HorizontalDivider()
 
-            Section("Распознавание речи") {
+            Section(stringResource(R.string.settings_asr)) {
                 ChoiceRow(
                     options = listOf(
-                        AsrMode.ON_DEVICE to "Системное",
-                        AsrMode.SERVER to "Whisper на сервере",
+                        AsrMode.ON_DEVICE to stringResource(R.string.asr_on_device),
+                        AsrMode.SERVER to stringResource(R.string.asr_server),
                     ),
                     selected = settings.asrMode,
                     onSelect = viewModel::setAsrMode,
                 )
                 Text(
                     text = when (settings.asrMode) {
-                        AsrMode.ON_DEVICE ->
-                            "Быстро и без загрузки аудио на наш сервер. Язык выбирается вручную; " +
-                                "распознаёт системный сервис (у Google он может обращаться в облако)."
-                        AsrMode.SERVER ->
-                            "Аудио уходит на бэкенд и удаляется сразу после расшифровки. " +
-                                "Качественнее и определяет язык сам."
+                        AsrMode.ON_DEVICE -> stringResource(R.string.asr_on_device_desc)
+                        AsrMode.SERVER -> stringResource(R.string.asr_server_desc)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 if (settings.asrMode == AsrMode.ON_DEVICE) {
-                    Text("Язык диктовки", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.asr_lang_label), style = MaterialTheme.typography.labelLarge)
                     ChoiceRow(
                         options = ON_DEVICE_LANGUAGES.map { it.code to it.name },
                         selected = settings.asrLanguage,
@@ -171,21 +169,19 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
 
             HorizontalDivider()
 
-            Section("Обработка текста") {
+            Section(stringResource(R.string.settings_processing)) {
                 ChoiceRow(
                     options = listOf(
-                        ProcessingMode.SERVER to "Сервер (LLM)",
-                        ProcessingMode.LOCAL to "Локально",
+                        ProcessingMode.SERVER to stringResource(R.string.proc_server),
+                        ProcessingMode.LOCAL to stringResource(R.string.proc_local),
                     ),
                     selected = settings.processingMode,
                     onSelect = viewModel::setProcessingMode,
                 )
                 Text(
                     text = when (settings.processingMode) {
-                        ProcessingMode.SERVER ->
-                            "Стили, перевод и полноценный рерайт — текст уходит на бэкенд."
-                        ProcessingMode.LOCAL ->
-                            "Без сети: чистка слов-паразитов и пунктуации. Стили и перевод не работают."
+                        ProcessingMode.SERVER -> stringResource(R.string.proc_server_desc)
+                        ProcessingMode.LOCAL -> stringResource(R.string.proc_local_desc)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -194,13 +190,13 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
 
             HorizontalDivider()
 
-            Section("Кнопка поверх приложений") {
+            Section(stringResource(R.string.settings_bubble)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text("Показывать пузырь", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.bubble_toggle), style = MaterialTheme.typography.bodyLarge)
                     Switch(
                         checked = settings.bubbleEnabled && canDrawOverlay,
                         onCheckedChange = { enabled ->
@@ -217,23 +213,22 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
                     )
                 }
                 Text(
-                    "Кнопка микрофона висит поверх мессенджеров: нажал — наговорил — " +
-                        "готовый текст лёг в буфер обмена, осталось вставить в поле ввода.",
+                    stringResource(R.string.bubble_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (!canDrawOverlay) {
                     OutlinedButton(onClick = { context.requestOverlayPermission() }) {
-                        Text("Разрешить показ поверх приложений")
+                        Text(stringResource(R.string.bubble_permission))
                     }
                 }
             }
 
             if (settings.isAdmin) {
                 HorizontalDivider()
-                Section("Админ") {
+                Section(stringResource(R.string.settings_admin)) {
                     Button(onClick = onOpenAdmin, modifier = Modifier.fillMaxWidth()) {
-                        Text("Открыть панель настроек сервера")
+                        Text(stringResource(R.string.admin_open))
                     }
                 }
             }
@@ -258,7 +253,7 @@ private fun AdminUnlockFooter(unlocked: Boolean, onSubmit: (String) -> Unit) {
     var token by remember { mutableStateOf("") }
 
     Text(
-        text = "Voice-to-Messenger ${BuildConfig.VERSION_NAME}",
+        text = stringResource(R.string.version_line, BuildConfig.VERSION_NAME),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
@@ -281,17 +276,17 @@ private fun AdminUnlockFooter(unlocked: Boolean, onSubmit: (String) -> Unit) {
     if (askToken) {
         AlertDialog(
             onDismissRequest = { askToken = false },
-            title = { Text("Админ-доступ") },
+            title = { Text(stringResource(R.string.admin_dialog_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = token,
                         onValueChange = { token = it },
-                        label = { Text("Админ-токен") },
+                        label = { Text(stringResource(R.string.admin_token_label)) },
                         singleLine = true,
                     )
                     Text(
-                        "Вкладка «Приложение» в веб-панели /admin.",
+                        stringResource(R.string.admin_token_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -305,9 +300,9 @@ private fun AdminUnlockFooter(unlocked: Boolean, onSubmit: (String) -> Unit) {
                         token = ""
                     },
                     enabled = token.isNotBlank(),
-                ) { Text("Войти") }
+                ) { Text(stringResource(R.string.action_login)) }
             },
-            dismissButton = { TextButton(onClick = { askToken = false }) { Text("Отмена") } },
+            dismissButton = { TextButton(onClick = { askToken = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }

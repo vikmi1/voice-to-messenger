@@ -30,7 +30,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.voicetomessenger.R
 import com.voicetomessenger.data.Note
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,16 +46,16 @@ fun NotesScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Заметки") },
+                title = { Text(stringResource(R.string.cd_notes)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
                     if (notes.isNotEmpty()) {
                         IconButton(onClick = viewModel::clearNotes) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = "Удалить все")
+                            Icon(Icons.Default.DeleteSweep, contentDescription = stringResource(R.string.notes_clear_cd))
                         }
                     }
                 },
@@ -68,7 +70,7 @@ fun NotesScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "Пока пусто. Сохрани готовое сообщение кнопкой «В заметки».",
+                    stringResource(R.string.notes_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(32.dp),
@@ -108,13 +110,13 @@ private fun NoteCard(note: Note, onDelete: () -> Unit) {
                 horizontalArrangement = Arrangement.End,
             ) {
                 IconButton(onClick = { context.copyToClipboard(note.text) }) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Копировать")
+                    Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.cd_copy))
                 }
                 IconButton(onClick = { context.shareText(note.text) }) {
-                    Icon(Icons.Default.Share, contentDescription = "Поделиться")
+                    Icon(Icons.Default.Share, contentDescription = stringResource(R.string.cd_share))
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Удалить")
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete))
                 }
             }
         }

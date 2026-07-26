@@ -439,22 +439,26 @@ private fun StyleRow(
     }
 }
 
-/** Название стиля: встроенные — локализованные, кастомные из админки — как пришли. */
+// Локализуем ТОЛЬКО нетронутые дефолтные имена (зеркалят config_store._default_config на
+// бэкенде). Если админ переименовал стиль/язык в панели — показываем его имя как есть (WYSIWYG),
+// иначе правки в админке молча перебивались бы локализацией.
+
+/** Название стиля: нетронутый дефолт — локализованно, переименованное в админке — как задано. */
 @Composable
-private fun styleLabel(style: Style): String = when (style.id) {
-    "mine" -> stringResource(R.string.style_mine)
-    "friendly" -> stringResource(R.string.style_friendly)
-    "business" -> stringResource(R.string.style_business)
+private fun styleLabel(style: Style): String = when (style.id to style.name) {
+    "mine" to "Мой стиль" -> stringResource(R.string.style_mine)
+    "friendly" to "Дружелюбно" -> stringResource(R.string.style_friendly)
+    "business" to "Деловой" -> stringResource(R.string.style_business)
     else -> style.name
 }
 
-/** Название языка перевода: встроенные — локализованные, прочие — как пришли с сервера. */
+/** Название языка перевода: нетронутый дефолт — локализованно, изменённое в админке — как задано. */
 @Composable
-private fun languageLabel(language: Language): String = when (language.code) {
-    "off" -> stringResource(R.string.lang_off)
-    "ru" -> stringResource(R.string.lang_ru)
-    "de" -> stringResource(R.string.lang_de)
-    "en" -> stringResource(R.string.lang_en)
+private fun languageLabel(language: Language): String = when (language.code to language.name) {
+    "off" to "Без перевода" -> stringResource(R.string.lang_off)
+    "ru" to "Русский" -> stringResource(R.string.lang_ru)
+    "de" to "Немецкий" -> stringResource(R.string.lang_de)
+    "en" to "Английский" -> stringResource(R.string.lang_en)
     else -> language.name
 }
 

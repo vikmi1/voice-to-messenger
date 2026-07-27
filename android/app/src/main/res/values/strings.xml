@@ -92,6 +92,10 @@
     <string name="proc_server_desc">Стили, перевод и полноценный рерайт — текст уходит на бэкенд.</string>
     <string name="proc_local_desc">Без сети: чистка слов-паразитов и пунктуации. Стили и перевод не работают.</string>
 
+    <string name="settings_layout">Раскладка главного экрана</string>
+    <string name="layout_mic_bottom">Микрофон внизу</string>
+    <string name="layout_mic_bottom_desc">Опции уезжают наверх, кнопка записи закрепляется под ними — до неё дотягивается большой палец руки, которая держит телефон.</string>
+
     <string name="settings_bubble">Кнопка поверх приложений</string>
     <string name="bubble_toggle">Показывать пузырь</string>
     <string name="bubble_desc">Кнопка микрофона висит поверх мессенджеров: нажал — наговорил — готовый текст лёг в буфер обмена, осталось вставить в поле ввода.</string>

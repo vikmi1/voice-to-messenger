@@ -149,6 +149,10 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.settings.setProcessingMode(mode) }
     }
 
+    fun setMicAtBottom(enabled: Boolean) {
+        viewModelScope.launch { container.settings.setMicAtBottom(enabled) }
+    }
+
     fun setBubbleEnabled(enabled: Boolean) {
         viewModelScope.launch { container.settings.setBubbleEnabled(enabled) }
     }

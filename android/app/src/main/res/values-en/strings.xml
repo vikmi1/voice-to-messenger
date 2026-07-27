@@ -90,6 +90,10 @@
     <string name="proc_server_desc">Styles, translation and full rewrite — the text goes to the backend.</string>
     <string name="proc_local_desc">Offline: cleanup of filler words and punctuation. Styles and translation don’t work.</string>
 
+    <string name="settings_layout">Main screen layout</string>
+    <string name="layout_mic_bottom">Mic at the bottom</string>
+    <string name="layout_mic_bottom_desc">Options move up and the record button is pinned below them — within reach of the thumb of the hand holding the phone.</string>
+
     <string name="settings_bubble">Button over other apps</string>
     <string name="bubble_toggle">Show bubble</string>
     <string name="bubble_desc">The mic button floats over messengers: tap — speak — the ready text goes to the clipboard, just paste it in.</string>

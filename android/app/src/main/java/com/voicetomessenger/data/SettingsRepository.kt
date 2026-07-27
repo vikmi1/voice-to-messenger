@@ -31,6 +31,7 @@ class SettingsRepository(context: Context) {
         val ASR_MODE = stringPreferencesKey("asr_mode")
         val ASR_LANGUAGE = stringPreferencesKey("asr_language")
         val PROCESSING_MODE = stringPreferencesKey("processing_mode")
+        val MIC_AT_BOTTOM = booleanPreferencesKey("mic_at_bottom")
         val BUBBLE_ENABLED = booleanPreferencesKey("bubble_enabled")
         val ADMIN_TOKEN = stringPreferencesKey("admin_token")
         val OPTIONS_JSON = stringPreferencesKey("options_json")
@@ -56,6 +57,7 @@ class SettingsRepository(context: Context) {
             asrLanguage = prefs[Keys.ASR_LANGUAGE] ?: defaults.asrLanguage,
             processingMode = prefs[Keys.PROCESSING_MODE]?.toEnum<ProcessingMode>()
                 ?: defaults.processingMode,
+            micAtBottom = prefs[Keys.MIC_AT_BOTTOM] ?: defaults.micAtBottom,
             bubbleEnabled = prefs[Keys.BUBBLE_ENABLED] ?: defaults.bubbleEnabled,
             adminToken = prefs[Keys.ADMIN_TOKEN] ?: defaults.adminToken,
         )
@@ -88,6 +90,8 @@ class SettingsRepository(context: Context) {
 
     suspend fun setProcessingMode(mode: ProcessingMode) =
         store.edit { it[Keys.PROCESSING_MODE] = mode.name }
+
+    suspend fun setMicAtBottom(enabled: Boolean) = store.edit { it[Keys.MIC_AT_BOTTOM] = enabled }
 
     suspend fun setBubbleEnabled(enabled: Boolean) =
         store.edit { it[Keys.BUBBLE_ENABLED] = enabled }

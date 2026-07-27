@@ -90,6 +90,10 @@
     <string name="proc_server_desc">Stile, Übersetzung und vollständiges Umschreiben — der Text geht ans Backend.</string>
     <string name="proc_local_desc">Ohne Netz: Bereinigung von Füllwörtern und Zeichensetzung. Stile und Übersetzung funktionieren nicht.</string>
 
+    <string name="settings_layout">Layout des Hauptbildschirms</string>
+    <string name="layout_mic_bottom">Mikrofon unten</string>
+    <string name="layout_mic_bottom_desc">Die Optionen rücken nach oben, der Aufnahmeknopf sitzt fest darunter — so erreicht ihn der Daumen der Hand, die das Telefon hält.</string>
+
     <string name="settings_bubble">Knopf über anderen Apps</string>
     <string name="bubble_toggle">Blase anzeigen</string>
     <string name="bubble_desc">Der Mikrofonknopf schwebt über Messengern: tippen — sprechen — der fertige Text liegt in der Zwischenablage, nur noch einfügen.</string>

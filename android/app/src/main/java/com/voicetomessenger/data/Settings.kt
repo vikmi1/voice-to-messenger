@@ -31,6 +31,8 @@ data class Settings(
     /** BCP-47 тег для распознавания на устройстве. */
     val asrLanguage: String = "ru-RU",
     val processingMode: ProcessingMode = ProcessingMode.SERVER,
+    /** Кнопка записи внизу, под опциями — чтобы дотягиваться большим пальцем одной руки. */
+    val micAtBottom: Boolean = false,
     val bubbleEnabled: Boolean = false,
     /** Токен админ-панели. Пока пуст — раздела «Админ» в приложении нет. */
     val adminToken: String = "",

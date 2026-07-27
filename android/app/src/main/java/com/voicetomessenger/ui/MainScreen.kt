@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.voicetomessenger.R
@@ -139,6 +140,8 @@ fun MainScreen(
     val typeLocked = capture !is CaptureState.Idle && capture !is CaptureState.Failed
     val typeEnabled = serverMode && !typeLocked
 
+    val micAtBottom = settings.micAtBottom
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -169,65 +172,100 @@ fun MainScreen(
             }
         },
     ) { innerPadding ->
+        // Внешняя колонка нужна только ради режима «микрофон внизу»: прокручиваемая
+        // часть занимает всё оставшееся место, а блок записи стоит под ней намертво.
+        // При выключенном тумблере weight(1f) отдаёт прокрутке всю высоту — раскладка
+        // получается ровно такой же, как была.
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .fillMaxSize(),
         ) {
-            if (!settings.isServerConfigured && serverMode) {
-                SetupHint(onOpenSettings)
-            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (!settings.isServerConfigured && serverMode) {
+                    SetupHint(onOpenSettings)
+                }
 
-            MicSection(capture = capture, onClick = onMicClick)
+                if (!micAtBottom) {
+                    MicSection(capture = capture, onClick = onMicClick)
+                }
 
-            TypeRow(
-                asList = settings.asList,
-                enabled = typeEnabled,
-                showLockedHint = serverMode && typeLocked,
-                onSelect = viewModel::setListMode,
-            )
-
-            StyleRow(
-                styles = options.styles,
-                selectedId = settings.styleId,
-                // Список — это заметка/перечень, стиль к нему не применяется.
-                enabled = optionsEnabled && !settings.asList,
-                listMode = settings.asList,
-                localMode = !serverMode,
-                onSelect = viewModel::selectStyle,
-            )
-
-            EmojiRow(checked = settings.emoji, enabled = optionsEnabled, onToggle = viewModel::setEmoji)
-
-            LanguageRow(
-                languages = options.languages,
-                selectedCode = settings.targetLang,
-                enabled = optionsEnabled,
-                onSelect = viewModel::selectTargetLang,
-            )
-
-            (capture as? CaptureState.Listening)?.let { listening ->
-                RecordingControls(
-                    state = listening,
-                    onPause = viewModel::pauseCapture,
-                    onResume = viewModel::resumeCapture,
-                    onStop = viewModel::stopCapture,
-                    onCancel = viewModel::reset,
+                TypeRow(
+                    asList = settings.asList,
+                    enabled = typeEnabled,
+                    showLockedHint = serverMode && typeLocked,
+                    onSelect = viewModel::setListMode,
                 )
+
+                StyleRow(
+                    styles = options.styles,
+                    selectedId = settings.styleId,
+                    // Список — это заметка/перечень, стиль к нему не применяется.
+                    enabled = optionsEnabled && !settings.asList,
+                    listMode = settings.asList,
+                    localMode = !serverMode,
+                    onSelect = viewModel::selectStyle,
+                )
+
+                EmojiRow(checked = settings.emoji, enabled = optionsEnabled, onToggle = viewModel::setEmoji)
+
+                LanguageRow(
+                    languages = options.languages,
+                    selectedCode = settings.targetLang,
+                    enabled = optionsEnabled,
+                    onSelect = viewModel::selectTargetLang,
+                )
+
+                if (!micAtBottom) {
+                    RecordingControls(capture = capture, viewModel = viewModel)
+                }
+
+                when (val state = capture) {
+                    is CaptureState.Processing -> RawSection(state.raw)
+                    is CaptureState.Done -> RawSection(state.raw)
+                    is CaptureState.Failed -> ErrorCard(state.message, onRetry = viewModel::reset)
+                    else -> Unit
+                }
             }
 
-            when (val state = capture) {
-                is CaptureState.Processing -> RawSection(state.raw)
-                is CaptureState.Done -> RawSection(state.raw)
-                is CaptureState.Failed -> ErrorCard(state.message, onRetry = viewModel::reset)
-                else -> Unit
+            if (micAtBottom) {
+                // Кнопка и управление записью держатся низа экрана: до них дотягивается
+                // большой палец той же руки, что держит телефон, а опции остаются выше
+                // и прокручиваются отдельно.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    MicSection(capture = capture, onClick = onMicClick)
+                    RecordingControls(capture = capture, viewModel = viewModel)
+                }
             }
         }
     }
+}
+
+/** Пауза/готово/отмена — только пока идёт запись. */
+@Composable
+private fun RecordingControls(capture: CaptureState, viewModel: MainViewModel) {
+    val listening = capture as? CaptureState.Listening ?: return
+    RecordingControls(
+        state = listening,
+        onPause = viewModel::pauseCapture,
+        onResume = viewModel::resumeCapture,
+        onStop = viewModel::stopCapture,
+        onCancel = viewModel::reset,
+    )
 }
 
 @Composable
@@ -291,6 +329,10 @@ private fun MicSection(capture: CaptureState, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
+            // Гипотеза распознавания растёт по ходу диктовки; без ограничения она
+            // выдавливала бы опции с экрана в раскладке «микрофон внизу».
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

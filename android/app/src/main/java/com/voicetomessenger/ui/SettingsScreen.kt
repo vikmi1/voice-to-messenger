@@ -226,6 +226,27 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
 
             HorizontalDivider()
 
+            Section(stringResource(R.string.settings_layout)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(stringResource(R.string.layout_mic_bottom), style = MaterialTheme.typography.bodyLarge)
+                    Switch(
+                        checked = settings.micAtBottom,
+                        onCheckedChange = viewModel::setMicAtBottom,
+                    )
+                }
+                Text(
+                    stringResource(R.string.layout_mic_bottom_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            HorizontalDivider()
+
             Section(stringResource(R.string.settings_bubble)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

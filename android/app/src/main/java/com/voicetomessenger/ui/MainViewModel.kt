@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.voicetomessenger.AppContainer
+import com.voicetomessenger.R
 import com.voicetomessenger.VoiceApp
 import com.voicetomessenger.capture.CaptureState
+import com.voicetomessenger.localizedString
 import com.voicetomessenger.data.AsrMode
 import com.voicetomessenger.data.Note
 import com.voicetomessenger.data.Options
@@ -42,6 +44,14 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     /** Короткие сообщения для снекбара. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    /**
+     * ViewModel переживает пересоздание экрана при смене языка, поэтому строку берём
+     * не из запомненного контекста, а по выбранной локали на момент показа.
+     */
+    private fun say(resId: Int, vararg args: Any) {
+        _messages.tryEmit(container.appContext.localizedString(resId, *args))
+    }
 
     init {
         viewModelScope.launch { container.refreshOptions() }
@@ -104,7 +114,7 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     fun saveNote(text: String) {
         viewModelScope.launch {
             container.notes.add(text)
-            _messages.tryEmit("Сохранено в заметки")
+            say(R.string.msg_note_saved)
         }
     }
 
@@ -133,7 +143,7 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.settings.setServer(url, token)
             container.refreshOptions()
-            _messages.tryEmit("Настройки сервера сохранены")
+            say(R.string.msg_server_saved)
         }
     }
 
@@ -166,25 +176,30 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
             runCatching { container.admin.checkToken(token.trim()) }.fold(
                 onSuccess = {
                     container.settings.setAdminToken(token)
-                    _messages.tryEmit("Админ-доступ открыт")
+                    say(R.string.msg_admin_unlocked)
                     onUnlocked()
                 },
-                onFailure = { _messages.tryEmit(it.message ?: "Токен не подошёл") },
+                onFailure = {
+                    val message = it.message
+                    if (message != null) _messages.tryEmit(message) else say(R.string.msg_admin_token_bad)
+                },
             )
         }
     }
 
     fun checkConnection() {
         viewModelScope.launch {
-            val message = runCatching { container.backend.options() }
-                .fold(
-                    onSuccess = { options ->
-                        container.settings.cacheOptions(options)
-                        "Связь есть: стилей — ${options.styles.size}"
-                    },
-                    onFailure = { it.message ?: "Не удалось связаться с сервером" },
-                )
-            _messages.tryEmit(message)
+            runCatching { container.backend.options() }.fold(
+                onSuccess = { options ->
+                    container.settings.cacheOptions(options)
+                    say(R.string.msg_connection_ok, options.styles.size)
+                },
+                onFailure = {
+                    // Сообщение из BackendClient уже локализовано и объясняет причину точнее.
+                    val message = it.message
+                    if (message != null) _messages.tryEmit(message) else say(R.string.msg_connection_failed)
+                },
+            )
         }
     }
 

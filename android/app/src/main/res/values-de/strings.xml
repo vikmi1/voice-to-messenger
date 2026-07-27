@@ -5,6 +5,10 @@
     <string name="bubble_notification_title">Aufnahmeblase aktiv</string>
     <string name="bubble_notification_text">Tippe auf den Knopf über dem Bildschirm, um eine Nachricht zu diktieren</string>
     <string name="bubble_stop">Ausschalten</string>
+    <string name="bubble_status_paused">Pause — tippe auf den Knopf, um weiterzumachen</string>
+    <string name="bubble_status_listening">Ich höre zu … tippe auf den Knopf, um zu beenden</string>
+    <string name="bubble_status_done">Fertig — kopieren und in den Chat einfügen</string>
+    <string name="bubble_copy_toast">Kopiert — füge es ins Eingabefeld ein</string>
 
     <!-- Allgemein -->
     <string name="cd_back">Zurück</string>
@@ -16,6 +20,7 @@
     <string name="action_new_message">Neue Nachricht</string>
     <string name="action_cancel">Abbrechen</string>
     <string name="action_delete">Löschen</string>
+    <string name="action_close">Schließen</string>
 
     <!-- Hauptbildschirm -->
     <string name="setup_title">Server nicht eingerichtet</string>
@@ -129,6 +134,41 @@
     <string name="game_hint">Wische in eine Richtung — gleiche Kacheln verschmelzen</string>
     <string name="game_won">2048! Du kannst weiterspielen</string>
     <string name="game_over">Keine Züge mehr</string>
+
+    <!-- Snackbars -->
+    <string name="msg_note_saved">In Notizen gespeichert</string>
+    <string name="msg_server_saved">Servereinstellungen gespeichert</string>
+    <string name="msg_connection_ok">Verbindung steht: %1$d Stile</string>
+    <string name="msg_connection_failed">Der Server ist nicht erreichbar</string>
+    <string name="msg_admin_unlocked">Admin-Zugang freigeschaltet</string>
+    <string name="msg_admin_token_bad">Das Token passt nicht</string>
+
+    <!-- Fehler bei Aufnahme und Verarbeitung -->
+    <string name="err_record_start">Aufnahme nicht gestartet — prüfe den Zugriff aufs Mikrofon</string>
+    <string name="err_record_empty">Die Aufnahme ist leer oder zu kurz</string>
+    <string name="err_transcribe">Die Aufnahme ließ sich nicht transkribieren</string>
+    <string name="err_nothing_recognized">Nichts erkannt — versuch es noch einmal</string>
+    <string name="err_process">Der Text ließ sich nicht verarbeiten</string>
+    <string name="err_empty_result">Der Server hat eine leere Antwort geliefert</string>
+
+    <!-- Backend-Fehler -->
+    <string name="err_server_not_configured">Server nicht eingerichtet — trag Adresse und Token in den Einstellungen ein</string>
+    <string name="err_server_empty_body">Leere Serverantwort</string>
+    <string name="err_server_token">Der Server hat das Token abgelehnt — prüfe das API-Token in den Einstellungen</string>
+    <string name="err_server_endpoint">Endpunkt nicht gefunden — prüfe die Serveradresse</string>
+    <string name="err_server_5xx">Fehler auf dem Server (%1$d)</string>
+    <string name="err_server_code">Der Server antwortete mit %1$d</string>
+
+    <!-- Fehler der Systemerkennung -->
+    <string name="err_asr_unavailable">Auf dem Gerät gibt es keine Spracherkennung — schalte in den Einstellungen auf Whisper am Server um</string>
+    <string name="err_asr_audio">Fehler bei der Tonaufnahme</string>
+    <string name="err_asr_client">Erkennung abgebrochen</string>
+    <string name="err_asr_permission">Kein Zugriff aufs Mikrofon</string>
+    <string name="err_asr_network">Keine Verbindung zum Erkennungsdienst</string>
+    <string name="err_asr_busy">Erkennung ist beschäftigt, versuch es gleich noch einmal</string>
+    <string name="err_asr_server">Der Erkennungsdienst hat einen Fehler gemeldet</string>
+    <string name="err_asr_timeout">Keine Sprache gehört</string>
+    <string name="err_asr_unknown">Spracherkennung fehlgeschlagen (Code %1$d)</string>
 
     <!-- Systemaktionen -->
     <string name="copy_toast">Kopiert</string>

@@ -7,6 +7,8 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.annotation.MainThread
+import com.voicetomessenger.R
+import com.voicetomessenger.localizedString
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -44,7 +46,7 @@ class OnDeviceRecognizer(private val context: Context) {
     @MainThread
     fun start(languageTag: String) {
         if (!isAvailable) {
-            _events.tryEmit(Event.Failed("На устройстве нет распознавания речи — включи серверный Whisper в настройках"))
+            _events.tryEmit(Event.Failed(context.localizedString(R.string.err_asr_unavailable)))
             return
         }
         release()
@@ -100,7 +102,7 @@ class OnDeviceRecognizer(private val context: Context) {
         override fun onResults(results: Bundle?) {
             val text = firstResult(results)
             if (text.isNullOrBlank()) {
-                _events.tryEmit(Event.Failed("Ничего не распознано — попробуй ещё раз"))
+                _events.tryEmit(Event.Failed(context.localizedString(R.string.err_nothing_recognized)))
             } else {
                 _events.tryEmit(Event.Final(text))
             }
@@ -117,15 +119,15 @@ class OnDeviceRecognizer(private val context: Context) {
     }
 
     private fun describe(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_AUDIO -> "Ошибка записи звука"
-        SpeechRecognizer.ERROR_CLIENT -> "Распознавание прервано"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Нет доступа к микрофону"
+        SpeechRecognizer.ERROR_AUDIO -> context.localizedString(R.string.err_asr_audio)
+        SpeechRecognizer.ERROR_CLIENT -> context.localizedString(R.string.err_asr_client)
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.localizedString(R.string.err_asr_permission)
         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
-            "Нет связи с сервисом распознавания"
-        SpeechRecognizer.ERROR_NO_MATCH -> "Ничего не распознано — попробуй ещё раз"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Распознавание занято, повтори через секунду"
-        SpeechRecognizer.ERROR_SERVER -> "Сервис распознавания вернул ошибку"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Речь не услышана"
-        else -> "Не удалось распознать речь (код $error)"
+            context.localizedString(R.string.err_asr_network)
+        SpeechRecognizer.ERROR_NO_MATCH -> context.localizedString(R.string.err_nothing_recognized)
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.localizedString(R.string.err_asr_busy)
+        SpeechRecognizer.ERROR_SERVER -> context.localizedString(R.string.err_asr_server)
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.localizedString(R.string.err_asr_timeout)
+        else -> context.localizedString(R.string.err_asr_unknown, error)
     }
 }

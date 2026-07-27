@@ -29,6 +29,8 @@ import com.voicetomessenger.R
 import com.voicetomessenger.appContainer
 import com.voicetomessenger.capture.CaptureState
 import com.voicetomessenger.capture.VoicePipeline
+import com.voicetomessenger.localizedContext
+import com.voicetomessenger.localizedString
 import com.voicetomessenger.ui.copyToClipboard
 import com.voicetomessenger.ui.shareText
 import kotlin.math.hypot
@@ -182,29 +184,27 @@ class BubbleService : Service() {
             CaptureState.Idle -> removePanel()
 
             is CaptureState.Listening -> showPanel(
-                status = if (state.paused) {
-                    "Пауза — нажми на кнопку, чтобы продолжить"
-                } else {
-                    "Слушаю… нажми на кнопку, чтобы закончить"
-                },
+                status = localizedString(
+                    if (state.paused) R.string.bubble_status_paused else R.string.bubble_status_listening,
+                ),
                 text = state.partial,
                 actionsEnabled = false,
             )
 
             CaptureState.Transcribing -> showPanel(
-                status = "Расшифровываю запись…",
+                status = localizedString(R.string.status_transcribing),
                 text = "",
                 actionsEnabled = false,
             )
 
             is CaptureState.Processing -> showPanel(
-                status = "Готовлю сообщение…",
+                status = localizedString(R.string.status_processing),
                 text = state.text,
                 actionsEnabled = false,
             )
 
             is CaptureState.Done -> showPanel(
-                status = "Готово — скопируй и вставь в чат",
+                status = localizedString(R.string.bubble_status_done),
                 text = state.text,
                 actionsEnabled = true,
             )
@@ -228,11 +228,13 @@ class BubbleService : Service() {
     }
 
     private fun inflatePanel(): View? {
-        val view = LayoutInflater.from(this).inflate(R.layout.overlay_panel, null)
+        // Разметку раздуваем из контекста с выбранной локалью: у сервиса своей нет,
+        // и подписи кнопок в XML пришли бы по системному языку.
+        val view = LayoutInflater.from(localizedContext()).inflate(R.layout.overlay_panel, null)
 
         view.findViewById<Button>(R.id.panel_copy).setOnClickListener {
             currentText()?.let {
-                copyToClipboard(it, toastMessage = "Скопировано — вставь в поле ввода")
+                copyToClipboard(it, toastMessage = localizedString(R.string.bubble_copy_toast))
                 finishSession()
             }
         }
@@ -273,15 +275,15 @@ class BubbleService : Service() {
 
     private fun startForegroundWithNotification() {
         val manager = checkNotNull(getSystemService<NotificationManager>())
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    getString(R.string.bubble_channel_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
-        }
+        // Канал пересоздаём всегда: повторный вызов лишь обновляет имя, зато после
+        // смены языка оно не остаётся на прежнем в системных настройках уведомлений.
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                localizedString(R.string.bubble_channel_name),
+                NotificationManager.IMPORTANCE_LOW,
+            ),
+        )
 
         val openApp = PendingIntent.getActivity(
             this,
@@ -299,10 +301,10 @@ class BubbleService : Service() {
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle(getString(R.string.bubble_notification_title))
-            .setContentText(getString(R.string.bubble_notification_text))
+            .setContentTitle(localizedString(R.string.bubble_notification_title))
+            .setContentText(localizedString(R.string.bubble_notification_text))
             .setContentIntent(openApp)
-            .addAction(0, getString(R.string.bubble_stop), stopIntent)
+            .addAction(0, localizedString(R.string.bubble_stop), stopIntent)
             .setOngoing(true)
             .build()
 

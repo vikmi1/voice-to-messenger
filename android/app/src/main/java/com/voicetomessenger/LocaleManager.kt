@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
+import androidx.annotation.StringRes
 import java.util.Locale
 
 /**
@@ -35,6 +36,33 @@ object LocaleManager {
         config.setLocale(locale)
         return base.createConfigurationContext(config)
     }
+}
+
+/**
+ * Контекст приложения с выбранным языком — для всего, что живёт вне Compose.
+ *
+ * `attachBaseContext` оборачивает только Activity, поэтому строки, взятые из контекста
+ * приложения или сервиса, шли бы по системной локали. ViewModel, конвейер записи и
+ * сервис пузыря переживают экран и не пересоздаются при смене языка, так что локаль
+ * перечитывается на каждый вызов: таких вызовов единицы (ошибки, снекбары, пузырь).
+ */
+fun Context.localizedContext(): Context {
+    val app = applicationContext
+    val tag = LocaleManager.getLanguage(app)
+    if (tag.isEmpty()) return app
+    // Кэшируем по тегу: createConfigurationContext не бесплатный, а панель пузыря
+    // перерисовывается на каждое изменение уровня звука — десять раз в секунду.
+    return synchronized(localizedContexts) {
+        localizedContexts.getOrPut(tag) { LocaleManager.wrap(app) }
+    }
+}
+
+private val localizedContexts = mutableMapOf<String, Context>()
+
+/** Строка ресурсов на языке, выбранном в приложении. */
+fun Context.localizedString(@StringRes id: Int, vararg args: Any): String {
+    val localized = localizedContext()
+    return if (args.isEmpty()) localized.getString(id) else localized.getString(id, *args)
 }
 
 /** Достаёт Activity из обёрнутого контекста — нужно, чтобы вызвать recreate() при смене языка. */

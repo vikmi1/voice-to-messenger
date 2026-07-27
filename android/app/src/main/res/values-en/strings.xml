@@ -5,6 +5,10 @@
     <string name="bubble_notification_title">Bubble active</string>
     <string name="bubble_notification_text">Tap the button over the screen to dictate a message</string>
     <string name="bubble_stop">Turn off</string>
+    <string name="bubble_status_paused">Paused — tap the button to continue</string>
+    <string name="bubble_status_listening">Listening… tap the button to finish</string>
+    <string name="bubble_status_done">Done — copy it and paste into the chat</string>
+    <string name="bubble_copy_toast">Copied — paste it into the input field</string>
 
     <!-- Common -->
     <string name="cd_back">Back</string>
@@ -16,6 +20,7 @@
     <string name="action_new_message">New message</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_delete">Delete</string>
+    <string name="action_close">Close</string>
 
     <!-- Main screen -->
     <string name="setup_title">Server not set up</string>
@@ -129,6 +134,41 @@
     <string name="game_hint">Swipe in any direction — matching tiles merge</string>
     <string name="game_won">2048! You can keep playing</string>
     <string name="game_over">No moves left</string>
+
+    <!-- Snackbars -->
+    <string name="msg_note_saved">Saved to notes</string>
+    <string name="msg_server_saved">Server settings saved</string>
+    <string name="msg_connection_ok">Connected: %1$d styles</string>
+    <string name="msg_connection_failed">Couldn’t reach the server</string>
+    <string name="msg_admin_unlocked">Admin access unlocked</string>
+    <string name="msg_admin_token_bad">That token didn’t work</string>
+
+    <!-- Recording and processing errors -->
+    <string name="err_record_start">Couldn’t start recording — check microphone access</string>
+    <string name="err_record_empty">The recording is empty or too short</string>
+    <string name="err_transcribe">Couldn’t transcribe the recording</string>
+    <string name="err_nothing_recognized">Nothing recognized — try again</string>
+    <string name="err_process">Couldn’t process the text</string>
+    <string name="err_empty_result">The server returned an empty response</string>
+
+    <!-- Backend errors -->
+    <string name="err_server_not_configured">Server not set up — enter the address and token in settings</string>
+    <string name="err_server_empty_body">Empty server response</string>
+    <string name="err_server_token">The server rejected the token — check the API token in settings</string>
+    <string name="err_server_endpoint">Endpoint not found — check the server address</string>
+    <string name="err_server_5xx">Server error (%1$d)</string>
+    <string name="err_server_code">The server replied %1$d</string>
+
+    <!-- System recognition errors -->
+    <string name="err_asr_unavailable">This device has no speech recognition — switch to Whisper on the server in settings</string>
+    <string name="err_asr_audio">Audio recording error</string>
+    <string name="err_asr_client">Recognition interrupted</string>
+    <string name="err_asr_permission">No microphone access</string>
+    <string name="err_asr_network">No connection to the recognition service</string>
+    <string name="err_asr_busy">Recognition is busy, try again in a second</string>
+    <string name="err_asr_server">The recognition service returned an error</string>
+    <string name="err_asr_timeout">No speech heard</string>
+    <string name="err_asr_unknown">Speech recognition failed (code %1$d)</string>
 
     <!-- System actions -->
     <string name="copy_toast">Copied</string>

@@ -15,7 +15,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 /** Ручной DI: зависимостей мало, отдельная библиотека тут была бы лишней. */
-class AppContainer(private val context: Context) {
+class AppContainer(context: Context) {
+
+    /** Для строк за пределами Compose — см. `Context.localizedString`. */
+    val appContext: Context = context.applicationContext
 
     /**
      * Живёт столько же, сколько процесс. Нужен для записей, которые обязаны дойти,
@@ -23,10 +26,10 @@ class AppContainer(private val context: Context) {
      */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    val settings = SettingsRepository(context)
-    val backend = BackendClient(settings)
+    val settings = SettingsRepository(appContext)
+    val backend = BackendClient(settings, appContext)
     val admin = AdminClient(settings)
-    val notes = NotesRepository(AppDatabase.get(context).noteDao())
+    val notes = NotesRepository(AppDatabase.get(appContext).noteDao())
 
     /**
      * Распознаватель и рекордер держат состояние микрофона, поэтому у каждого
@@ -34,11 +37,12 @@ class AppContainer(private val context: Context) {
      */
     fun newPipeline(scope: CoroutineScope) = VoicePipeline(
         scope = scope,
+        context = appContext,
         settings = settings,
         backend = backend,
         notes = notes,
-        recognizer = OnDeviceRecognizer(context),
-        recorder = AudioRecorder(context),
+        recognizer = OnDeviceRecognizer(appContext),
+        recorder = AudioRecorder(appContext),
     )
 
     /** Подтянуть стили и языки из админ-панели. Молча игнорирует отсутствие сети. */

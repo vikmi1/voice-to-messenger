@@ -1,9 +1,12 @@
 package com.voicetomessenger.net
 
+import android.content.Context
+import com.voicetomessenger.R
 import com.voicetomessenger.data.Language
 import com.voicetomessenger.data.Options
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.data.Style
+import com.voicetomessenger.localizedString
 import com.voicetomessenger.processing.ProcessRequest
 import java.io.File
 import java.io.IOException
@@ -32,7 +35,12 @@ class BackendException(message: String) : IOException(message)
  * Адрес и токен читаются из настроек на каждый запрос, поэтому смена сервера
  * в настройках действует сразу, без пересоздания клиента.
  */
-class BackendClient(private val settings: SettingsRepository) {
+class BackendClient(
+    private val settings: SettingsRepository,
+    // Тексты ошибок доходят до пользователя (снекбар, карточка на экране, панель
+    // пузыря), поэтому берём их из ресурсов на выбранном языке, а не из литералов.
+    private val context: Context,
+) {
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -63,7 +71,8 @@ class BackendClient(private val settings: SettingsRepository) {
         http.newCall(request).execute().use { response ->
             ensureSuccessful(response)
             // charStream() сам склеивает многобайтовые символы, разорванные между чтениями.
-            val reader = response.body?.charStream() ?: throw BackendException("Пустой ответ сервера")
+            val reader = response.body?.charStream()
+                ?: throw BackendException(context.localizedString(R.string.err_server_empty_body))
             val buffer = CharArray(512)
             while (true) {
                 val read = reader.read(buffer)
@@ -113,7 +122,7 @@ class BackendClient(private val settings: SettingsRepository) {
     private suspend fun credentials(): Pair<String, String> {
         val current = settings.current()
         if (!current.isServerConfigured) {
-            throw BackendException("Сервер не настроен — укажи адрес и токен в настройках")
+            throw BackendException(context.localizedString(R.string.err_server_not_configured))
         }
         return current.serverUrl.trimEnd('/') to current.apiToken
     }
@@ -126,10 +135,10 @@ class BackendClient(private val settings: SettingsRepository) {
         }.getOrNull()
         throw BackendException(
             explained ?: when (response.code) {
-                401 -> "Сервер отклонил токен — проверь API-токен в настройках"
-                404 -> "Эндпоинт не найден — проверь адрес сервера"
-                in 500..599 -> "Ошибка на сервере (${response.code})"
-                else -> "Сервер ответил ${response.code}"
+                401 -> context.localizedString(R.string.err_server_token)
+                404 -> context.localizedString(R.string.err_server_endpoint)
+                in 500..599 -> context.localizedString(R.string.err_server_5xx, response.code)
+                else -> context.localizedString(R.string.err_server_code, response.code)
             },
         )
     }

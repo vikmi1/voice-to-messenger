@@ -7,6 +7,10 @@
     <string name="bubble_notification_title">Пузырь активен</string>
     <string name="bubble_notification_text">Нажми на кнопку поверх экрана, чтобы надиктовать сообщение</string>
     <string name="bubble_stop">Выключить</string>
+    <string name="bubble_status_paused">Пауза — нажми на кнопку, чтобы продолжить</string>
+    <string name="bubble_status_listening">Слушаю… нажми на кнопку, чтобы закончить</string>
+    <string name="bubble_status_done">Готово — скопируй и вставь в чат</string>
+    <string name="bubble_copy_toast">Скопировано — вставь в поле ввода</string>
 
     <!-- Общее -->
     <string name="cd_back">Назад</string>
@@ -18,6 +22,7 @@
     <string name="action_new_message">Новое сообщение</string>
     <string name="action_cancel">Отмена</string>
     <string name="action_delete">Удалить</string>
+    <string name="action_close">Закрыть</string>
 
     <!-- Главный экран -->
     <string name="setup_title">Сервер не настроен</string>
@@ -131,6 +136,41 @@
     <string name="game_hint">Свайпай в любую сторону — одинаковые плитки складываются</string>
     <string name="game_won">2048! Можно играть дальше</string>
     <string name="game_over">Ходов больше нет</string>
+
+    <!-- Снекбары -->
+    <string name="msg_note_saved">Сохранено в заметки</string>
+    <string name="msg_server_saved">Настройки сервера сохранены</string>
+    <string name="msg_connection_ok">Связь есть: стилей — %1$d</string>
+    <string name="msg_connection_failed">Не удалось связаться с сервером</string>
+    <string name="msg_admin_unlocked">Админ-доступ открыт</string>
+    <string name="msg_admin_token_bad">Токен не подошёл</string>
+
+    <!-- Ошибки записи и обработки -->
+    <string name="err_record_start">Не удалось начать запись — проверь доступ к микрофону</string>
+    <string name="err_record_empty">Запись пустая или слишком короткая</string>
+    <string name="err_transcribe">Не удалось расшифровать запись</string>
+    <string name="err_nothing_recognized">Ничего не распознано — попробуй ещё раз</string>
+    <string name="err_process">Не удалось обработать текст</string>
+    <string name="err_empty_result">Сервер вернул пустой ответ</string>
+
+    <!-- Ошибки бэкенда -->
+    <string name="err_server_not_configured">Сервер не настроен — укажи адрес и токен в настройках</string>
+    <string name="err_server_empty_body">Пустой ответ сервера</string>
+    <string name="err_server_token">Сервер отклонил токен — проверь API-токен в настройках</string>
+    <string name="err_server_endpoint">Эндпоинт не найден — проверь адрес сервера</string>
+    <string name="err_server_5xx">Ошибка на сервере (%1$d)</string>
+    <string name="err_server_code">Сервер ответил %1$d</string>
+
+    <!-- Ошибки системного распознавания -->
+    <string name="err_asr_unavailable">На устройстве нет распознавания речи — включи серверный Whisper в настройках</string>
+    <string name="err_asr_audio">Ошибка записи звука</string>
+    <string name="err_asr_client">Распознавание прервано</string>
+    <string name="err_asr_permission">Нет доступа к микрофону</string>
+    <string name="err_asr_network">Нет связи с сервисом распознавания</string>
+    <string name="err_asr_busy">Распознавание занято, повтори через секунду</string>
+    <string name="err_asr_server">Сервис распознавания вернул ошибку</string>
+    <string name="err_asr_timeout">Речь не услышана</string>
+    <string name="err_asr_unknown">Не удалось распознать речь (код %1$d)</string>
 
     <!-- Системные действия -->
     <string name="copy_toast">Скопировано</string>

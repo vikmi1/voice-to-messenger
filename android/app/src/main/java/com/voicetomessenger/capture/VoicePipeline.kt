@@ -1,5 +1,7 @@
 package com.voicetomessenger.capture
 
+import android.content.Context
+import com.voicetomessenger.R
 import com.voicetomessenger.asr.AudioRecorder
 import com.voicetomessenger.asr.OnDeviceRecognizer
 import com.voicetomessenger.data.AsrMode
@@ -7,6 +9,7 @@ import com.voicetomessenger.data.NotesRepository
 import com.voicetomessenger.data.ProcessingMode
 import com.voicetomessenger.data.Settings
 import com.voicetomessenger.data.SettingsRepository
+import com.voicetomessenger.localizedString
 import com.voicetomessenger.net.BackendClient
 import com.voicetomessenger.processing.LocalProcessor
 import com.voicetomessenger.processing.ProcessRequest
@@ -62,6 +65,8 @@ sealed interface CaptureState {
  */
 class VoicePipeline(
     private val scope: CoroutineScope,
+    // Тексты [CaptureState.Failed] показываются как есть — и на экране, и в пузыре.
+    private val context: Context,
     private val settings: SettingsRepository,
     private val backend: BackendClient,
     private val notes: NotesRepository,
@@ -233,7 +238,7 @@ class VoicePipeline(
     private suspend fun recordForServer() {
         val started = withContext(Dispatchers.IO) { recorder.start() }
         if (!started) {
-            _state.value = CaptureState.Failed("Не удалось начать запись — проверь доступ к микрофону")
+            _state.value = CaptureState.Failed(context.localizedString(R.string.err_record_start))
             return
         }
         while (recorder.isRecording) {
@@ -246,7 +251,7 @@ class VoicePipeline(
         _state.value = CaptureState.Transcribing
         val file = withContext(Dispatchers.IO) { recorder.stop() }
         if (file == null) {
-            _state.value = CaptureState.Failed("Запись пустая или слишком короткая")
+            _state.value = CaptureState.Failed(context.localizedString(R.string.err_record_empty))
             return
         }
         val raw = try {
@@ -254,7 +259,8 @@ class VoicePipeline(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _state.value = CaptureState.Failed(e.message ?: "Не удалось расшифровать запись")
+            _state.value =
+                CaptureState.Failed(e.message ?: context.localizedString(R.string.err_transcribe))
             return
         } finally {
             // Аудио не храним — удаляем сразу после отправки, даже если запрос отменили.
@@ -262,7 +268,7 @@ class VoicePipeline(
         }
 
         if (raw.isBlank()) {
-            _state.value = CaptureState.Failed("Ничего не распознано — попробуй ещё раз")
+            _state.value = CaptureState.Failed(context.localizedString(R.string.err_nothing_recognized))
             return
         }
         runProcessing(raw)
@@ -295,13 +301,13 @@ class VoicePipeline(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _state.value = CaptureState.Failed(e.message ?: "Не удалось обработать текст")
+            _state.value = CaptureState.Failed(e.message ?: context.localizedString(R.string.err_process))
             return
         }
 
         val result = builder.toString().trim()
         _state.value = if (result.isEmpty()) {
-            CaptureState.Failed("Сервер вернул пустой ответ")
+            CaptureState.Failed(context.localizedString(R.string.err_empty_result))
         } else {
             results[key] = result
             CaptureState.Done(raw, result)

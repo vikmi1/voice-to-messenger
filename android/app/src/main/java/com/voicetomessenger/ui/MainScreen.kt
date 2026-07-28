@@ -97,7 +97,7 @@ fun MainScreen(
     viewModel: MainViewModel,
     onOpenNotes: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenGame: () -> Unit,
+    onOpenGames: () -> Unit,
 ) {
     val context = LocalContext.current
     val capture by viewModel.capture.collectAsState()
@@ -147,8 +147,8 @@ fun MainScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
-                    IconButton(onClick = onOpenGame) {
-                        Icon(Icons.Default.Casino, contentDescription = stringResource(R.string.cd_game))
+                    IconButton(onClick = onOpenGames) {
+                        Icon(Icons.Default.Casino, contentDescription = stringResource(R.string.cd_games))
                     }
                     IconButton(onClick = onOpenNotes) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.cd_notes))
@@ -201,7 +201,6 @@ fun MainScreen(
                 TypeRow(
                     asList = settings.asList,
                     enabled = typeEnabled,
-                    showLockedHint = serverMode && typeLocked,
                     onSelect = viewModel::setListMode,
                 )
 
@@ -433,7 +432,6 @@ private fun statusText(capture: CaptureState): String = when (capture) {
 private fun TypeRow(
     asList: Boolean,
     enabled: Boolean,
-    showLockedHint: Boolean,
     onSelect: (Boolean) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -454,14 +452,6 @@ private fun TypeRow(
                 onClick = { onSelect(true) },
                 enabled = enabled,
                 label = { Text(stringResource(R.string.type_list)) },
-            )
-        }
-        // Без пояснения серые чипы читаются как поломка, а не как осознанный запрет.
-        if (showLockedHint) {
-            Text(
-                stringResource(R.string.type_locked_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

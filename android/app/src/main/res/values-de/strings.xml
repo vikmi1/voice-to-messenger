@@ -45,7 +45,6 @@
     <string name="type_label">Typ</string>
     <string name="type_message">Nachricht</string>
     <string name="type_list">Liste</string>
-    <string name="type_locked_hint">Der Typ wird vor der Aufnahme gewählt: eine Liste entsteht nur aus dem, was als Liste diktiert wurde. Tippe auf „Neue Nachricht“, um zu wechseln.</string>
 
     <string name="style_label">Stil</string>
     <string name="style_local_hint">Die lokale Verarbeitung wendet keine Stile an</string>
@@ -99,6 +98,10 @@
     <string name="layout_mic_bottom">Mikrofon unten</string>
     <string name="layout_mic_bottom_desc">Die Optionen rücken nach oben, der Aufnahmeknopf sitzt fest darunter — so erreicht ihn der Daumen der Hand, die das Telefon hält.</string>
 
+    <string name="settings_sound">Ton</string>
+    <string name="sound_toggle">Töne in Spielen</string>
+    <string name="sound_desc">Klicks, „richtig/falsch“ und Sieg. Die Töne werden in der App erzeugt — ohne externe Dateien.</string>
+
     <string name="settings_bubble">Knopf über anderen Apps</string>
     <string name="bubble_toggle">Blase anzeigen</string>
     <string name="bubble_desc">Der Mikrofonknopf schwebt über Messengern: tippen — sprechen — der fertige Text liegt in der Zwischenablage, nur noch einfügen.</string>
@@ -125,8 +128,14 @@
     <string name="notes_clear_title">Alle Notizen löschen?</string>
     <string name="notes_clear_body">Alle %1$d Notizen werden gelöscht. Sie lassen sich nicht wiederherstellen, und „Mein Stil“ bleibt ohne Beispiele.</string>
 
-    <!-- Spiel -->
-    <string name="cd_game">Spiel 2048</string>
+    <!-- Spiele: Auswahlbildschirm -->
+    <string name="cd_games">Spiele</string>
+    <string name="games_title">Spiele</string>
+    <string name="game_2048_name">2048</string>
+    <string name="schulte_name">Schulte-Tabellen</string>
+    <string name="game_soon">Bald</string>
+
+    <!-- 2048 -->
     <string name="game_title">2048</string>
     <string name="game_score">Punkte</string>
     <string name="game_best">Rekord</string>
@@ -134,6 +143,21 @@
     <string name="game_hint">Wische in eine Richtung — gleiche Kacheln verschmelzen</string>
     <string name="game_won">2048! Du kannst weiterspielen</string>
     <string name="game_over">Keine Züge mehr</string>
+
+    <!-- Schulte-Tabellen -->
+    <string name="schulte_title">Schulte-Tabellen</string>
+    <string name="schulte_hint">Tippe die Zahlen der Reihe nach so schnell wie möglich</string>
+    <string name="schulte_timer">Zeit</string>
+    <string name="schulte_next">Nächste</string>
+    <string name="schulte_errors">Fehler</string>
+    <string name="schulte_result">Fertig! %1$s s</string>
+    <string name="schulte_new_attempt">Neuer Versuch</string>
+    <string name="schulte_progress">Fortschritt</string>
+    <string name="schulte_progress_title">Fortschritt: %1$s</string>
+    <string name="schulte_progress_empty">Noch keine Ergebnisse — spiel eine Tabelle durch.</string>
+    <string name="schulte_best">Beste: %1$s s</string>
+    <string name="schulte_last">Letzte: %1$s s</string>
+    <string name="schulte_progress_hint">Balken = letzte Versuche. Kürzer ist schneller.</string>
 
     <!-- Snackbars -->
     <string name="msg_note_saved">In Notizen gespeichert</string>

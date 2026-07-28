@@ -94,6 +94,27 @@ internal fun collapse(line: List<Int>): Pair<List<Int>, Int> {
 }
 
 /**
+ * Партия в компактной строке: «score|won|over|c0,c1,…,c15». Чистый Kotlin без org.json,
+ * чтобы сериализацию можно было гонять в JVM-тестах вместе с остальной логикой игры.
+ */
+fun GameState.serialize(): String =
+    "$score|${if (won) 1 else 0}|${if (over) 1 else 0}|${cells.joinToString(",")}"
+
+/** Разбирает строку из [serialize]; при любой порче формата возвращает null. */
+fun parseGameState(text: String): GameState? = runCatching {
+    val parts = text.split("|")
+    if (parts.size != 4) return null
+    val cells = parts[3].split(",").map { it.toInt() }
+    if (cells.size != BOARD_SIZE * BOARD_SIZE) return null
+    GameState(
+        cells = cells,
+        score = parts[0].toInt(),
+        won = parts[1] == "1",
+        over = parts[2] == "1",
+    )
+}.getOrNull()
+
+/**
  * Индексы клеток по линиям в порядке «от края, к которому свайпнули».
  * Так [collapse] всегда работает одинаково — как сдвиг влево.
  */

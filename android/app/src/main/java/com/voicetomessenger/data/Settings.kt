@@ -34,6 +34,8 @@ data class Settings(
     /** Кнопка записи внизу, под опциями — чтобы дотягиваться большим пальцем одной руки. */
     val micAtBottom: Boolean = false,
     val bubbleEnabled: Boolean = false,
+    /** Звуки в играх (клики, верно/неверно, победа). Синтезируются в коде — без файлов. */
+    val soundEnabled: Boolean = true,
     /** Токен админ-панели. Пока пуст — раздела «Админ» в приложении нет. */
     val adminToken: String = "",
 ) {

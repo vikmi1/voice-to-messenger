@@ -33,9 +33,12 @@ class SettingsRepository(context: Context) {
         val PROCESSING_MODE = stringPreferencesKey("processing_mode")
         val MIC_AT_BOTTOM = booleanPreferencesKey("mic_at_bottom")
         val BUBBLE_ENABLED = booleanPreferencesKey("bubble_enabled")
+        val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val ADMIN_TOKEN = stringPreferencesKey("admin_token")
         val OPTIONS_JSON = stringPreferencesKey("options_json")
         val GAME_BEST = intPreferencesKey("game_best")
+        val GAME_2048_STATE = stringPreferencesKey("game_2048_state")
+        val SCHULTE_RESULTS = stringPreferencesKey("schulte_results")
     }
 
     /**
@@ -43,6 +46,17 @@ class SettingsRepository(context: Context) {
      * приложения отношения не имеет и не должна пересобирать состояние главного экрана.
      */
     val gameBest: Flow<Int> = store.data.map { it[Keys.GAME_BEST] ?: 0 }
+
+    /** Незаконченная партия 2048 в компактной строке (см. `GameState.serialize`). */
+    val game2048State: Flow<String?> = store.data.map { it[Keys.GAME_2048_STATE] }
+
+    /**
+     * Результаты Шульте: размер таблицы → список времён в миллисекундах, старые впереди.
+     * Хранятся JSON-строкой, разбираются в [parseSchulteResults].
+     */
+    val schulteResults: Flow<Map<Int, List<Long>>> = store.data.map { prefs ->
+        prefs[Keys.SCHULTE_RESULTS]?.let(::parseSchulteResults) ?: emptyMap()
+    }
 
     val settings: Flow<Settings> = store.data.map { prefs ->
         val defaults = Settings()
@@ -59,6 +73,7 @@ class SettingsRepository(context: Context) {
                 ?: defaults.processingMode,
             micAtBottom = prefs[Keys.MIC_AT_BOTTOM] ?: defaults.micAtBottom,
             bubbleEnabled = prefs[Keys.BUBBLE_ENABLED] ?: defaults.bubbleEnabled,
+            soundEnabled = prefs[Keys.SOUND_ENABLED] ?: defaults.soundEnabled,
             adminToken = prefs[Keys.ADMIN_TOKEN] ?: defaults.adminToken,
         )
     }
@@ -96,6 +111,9 @@ class SettingsRepository(context: Context) {
     suspend fun setBubbleEnabled(enabled: Boolean) =
         store.edit { it[Keys.BUBBLE_ENABLED] = enabled }
 
+    suspend fun setSoundEnabled(enabled: Boolean) =
+        store.edit { it[Keys.SOUND_ENABLED] = enabled }
+
     /** Пустая строка убирает раздел «Админ» из приложения. */
     suspend fun setAdminToken(token: String) = store.edit { it[Keys.ADMIN_TOKEN] = token.trim() }
 
@@ -103,10 +121,27 @@ class SettingsRepository(context: Context) {
         if (score > (it[Keys.GAME_BEST] ?: 0)) it[Keys.GAME_BEST] = score
     }
 
+    /** Пустая строка стирает сохранённую партию (например, при «Новой игре» без ходов). */
+    suspend fun setGame2048State(serialized: String) = store.edit {
+        if (serialized.isEmpty()) it.remove(Keys.GAME_2048_STATE) else it[Keys.GAME_2048_STATE] = serialized
+    }
+
+    /** Дописывает результат попытки; на размер храним не больше [SCHULTE_HISTORY] последних времён. */
+    suspend fun addSchulteResult(size: Int, millis: Long) = store.edit { prefs ->
+        val current = prefs[Keys.SCHULTE_RESULTS]?.let(::parseSchulteResults) ?: emptyMap()
+        val updated = current.toMutableMap()
+        val times = (updated[size].orEmpty() + millis).takeLast(SCHULTE_HISTORY)
+        updated[size] = times
+        prefs[Keys.SCHULTE_RESULTS] = serializeSchulteResults(updated)
+    }
+
     suspend fun cacheOptions(options: Options) = store.edit {
         it[Keys.OPTIONS_JSON] = serializeOptions(options)
     }
 }
+
+/** Сколько последних результатов Шульте храним на каждый размер таблицы. */
+const val SCHULTE_HISTORY = 20
 
 private inline fun <reified T : Enum<T>> String.toEnum(): T? =
     runCatching { enumValueOf<T>(this) }.getOrNull()
@@ -118,6 +153,22 @@ private fun serializeOptions(options: Options): String {
     options.languages.forEach { languages.put(JSONObject().put("code", it.code).put("name", it.name)) }
     return JSONObject().put("styles", styles).put("languages", languages).toString()
 }
+
+private fun serializeSchulteResults(results: Map<Int, List<Long>>): String {
+    val root = JSONObject()
+    results.forEach { (size, times) ->
+        root.put(size.toString(), JSONArray().apply { times.forEach { put(it) } })
+    }
+    return root.toString()
+}
+
+private fun parseSchulteResults(json: String): Map<Int, List<Long>> = runCatching {
+    val root = JSONObject(json)
+    root.keys().asSequence().associate { key ->
+        val arr = root.getJSONArray(key)
+        key.toInt() to (0 until arr.length()).map { arr.getLong(it) }
+    }
+}.getOrDefault(emptyMap())
 
 private fun parseOptions(json: String): Options? = runCatching {
     val root = JSONObject(json)

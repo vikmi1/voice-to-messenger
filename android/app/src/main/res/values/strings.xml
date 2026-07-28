@@ -47,7 +47,6 @@
     <string name="type_label">Тип</string>
     <string name="type_message">Сообщение</string>
     <string name="type_list">Список</string>
-    <string name="type_locked_hint">Тип выбирается до записи: список получится только из того, что наговорено списком. Нажми «Новое сообщение», чтобы сменить.</string>
 
     <string name="style_label">Стиль</string>
     <string name="style_local_hint">Локальная обработка стили не применяет</string>
@@ -101,6 +100,10 @@
     <string name="layout_mic_bottom">Микрофон внизу</string>
     <string name="layout_mic_bottom_desc">Опции уезжают наверх, кнопка записи закрепляется под ними — до неё дотягивается большой палец руки, которая держит телефон.</string>
 
+    <string name="settings_sound">Звук</string>
+    <string name="sound_toggle">Звуки в играх</string>
+    <string name="sound_desc">Клики, «верно/неверно» и победа. Звуки синтезируются в приложении — без внешних файлов.</string>
+
     <string name="settings_bubble">Кнопка поверх приложений</string>
     <string name="bubble_toggle">Показывать пузырь</string>
     <string name="bubble_desc">Кнопка микрофона висит поверх мессенджеров: нажал — наговорил — готовый текст лёг в буфер обмена, осталось вставить в поле ввода.</string>
@@ -127,8 +130,14 @@
     <string name="notes_clear_title">Удалить все заметки?</string>
     <string name="notes_clear_body">Будут стёрты все %1$d заметок. Восстановить их нельзя, и «Мой стиль» останется без примеров.</string>
 
-    <!-- Игра -->
-    <string name="cd_game">Игра 2048</string>
+    <!-- Игры: экран выбора -->
+    <string name="cd_games">Игры</string>
+    <string name="games_title">Игры</string>
+    <string name="game_2048_name">2048</string>
+    <string name="schulte_name">Таблицы Шульте</string>
+    <string name="game_soon">Скоро</string>
+
+    <!-- 2048 -->
     <string name="game_title">2048</string>
     <string name="game_score">Счёт</string>
     <string name="game_best">Рекорд</string>
@@ -136,6 +145,21 @@
     <string name="game_hint">Свайпай в любую сторону — одинаковые плитки складываются</string>
     <string name="game_won">2048! Можно играть дальше</string>
     <string name="game_over">Ходов больше нет</string>
+
+    <!-- Таблицы Шульте -->
+    <string name="schulte_title">Таблицы Шульте</string>
+    <string name="schulte_hint">Нажимайте числа по порядку как можно быстрее</string>
+    <string name="schulte_timer">Время</string>
+    <string name="schulte_next">Далее</string>
+    <string name="schulte_errors">Ошибки</string>
+    <string name="schulte_result">Готово! %1$s с</string>
+    <string name="schulte_new_attempt">Новая попытка</string>
+    <string name="schulte_progress">Прогресс</string>
+    <string name="schulte_progress_title">Прогресс: %1$s</string>
+    <string name="schulte_progress_empty">Пока нет результатов — пройди таблицу.</string>
+    <string name="schulte_best">Лучшее: %1$s с</string>
+    <string name="schulte_last">Последнее: %1$s с</string>
+    <string name="schulte_progress_hint">Столбики — последние попытки. Чем короче, тем быстрее.</string>
 
     <!-- Снекбары -->
     <string name="msg_note_saved">Сохранено в заметки</string>

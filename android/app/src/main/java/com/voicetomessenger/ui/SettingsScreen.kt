@@ -247,6 +247,27 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
 
             HorizontalDivider()
 
+            Section(stringResource(R.string.settings_sound)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(stringResource(R.string.sound_toggle), style = MaterialTheme.typography.bodyLarge)
+                    Switch(
+                        checked = settings.soundEnabled,
+                        onCheckedChange = viewModel::setSoundEnabled,
+                    )
+                }
+                Text(
+                    stringResource(R.string.sound_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            HorizontalDivider()
+
             Section(stringResource(R.string.settings_bubble)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

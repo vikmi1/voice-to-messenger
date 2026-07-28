@@ -103,4 +103,26 @@ class Game2048Test {
         assertEquals(0, state.score)
         assertTrue(state.cells.all { it == 0 || it == 2 || it == 4 })
     }
+
+    @Test
+    fun `сериализация партии переживает круговой рейс`() {
+        val state = GameState(
+            cells = listOf(
+                2, 4, 8, 16,
+                0, 32, 0, 64,
+                128, 0, 256, 0,
+                0, 0, 0, 2,
+            ),
+            score = 1234,
+            won = true,
+            over = false,
+        )
+        assertEquals(state, parseGameState(state.serialize()))
+    }
+
+    @Test
+    fun `порченая строка партии даёт null`() {
+        assertEquals(null, parseGameState("мусор"))
+        assertEquals(null, parseGameState("1|0|0|1,2,3"))
+    }
 }

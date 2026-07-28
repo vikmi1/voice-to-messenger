@@ -15,11 +15,16 @@ import com.voicetomessenger.data.Note
 import com.voicetomessenger.data.Options
 import com.voicetomessenger.data.ProcessingMode
 import com.voicetomessenger.data.Settings
+import com.voicetomessenger.game.GameState
+import com.voicetomessenger.game.parseGameState
+import com.voicetomessenger.game.serialize
+import com.voicetomessenger.sound.GameSound
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -40,6 +45,10 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     val gameBest: StateFlow<Int> = container.settings.gameBest
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** Размер таблицы Шульте → история времён (мс). Для экрана прогресса. */
+    val schulteResults: StateFlow<Map<Int, List<Long>>> = container.settings.schulteResults
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** Короткие сообщения для снекбара. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -130,11 +139,30 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.notes.deleteAll() }
     }
 
-    // --- Игра -------------------------------------------------------------
+    // --- Игры -------------------------------------------------------------
 
     /** Рекорд обновляется только вверх — проверка внутри репозитория. */
     fun saveGameBest(score: Int) {
         viewModelScope.launch { container.settings.setGameBest(score) }
+    }
+
+    /** Незаконченная партия 2048, чтобы продолжить с того же места после закрытия приложения. */
+    suspend fun loadSavedGame2048(): GameState? =
+        container.settings.game2048State.first()?.let(::parseGameState)
+
+    fun persistGame2048(state: GameState) {
+        viewModelScope.launch { container.settings.setGame2048State(state.serialize()) }
+    }
+
+    fun saveSchulteResult(size: Int, millis: Long) {
+        viewModelScope.launch { container.settings.addSchulteResult(size, millis) }
+    }
+
+    /** Проигрывает звук события, если звук включён (проверка внутри движка). */
+    fun playSound(sound: GameSound) = container.sound.play(sound)
+
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch { container.settings.setSoundEnabled(enabled) }
     }
 
     // --- Настройки --------------------------------------------------------

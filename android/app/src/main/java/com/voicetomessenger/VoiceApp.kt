@@ -10,9 +10,11 @@ import com.voicetomessenger.data.NotesRepository
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.net.AdminClient
 import com.voicetomessenger.net.BackendClient
+import com.voicetomessenger.sound.SoundEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /** Ручной DI: зависимостей мало, отдельная библиотека тут была бы лишней. */
 class AppContainer(context: Context) {
@@ -30,6 +32,15 @@ class AppContainer(context: Context) {
     val backend = BackendClient(settings, appContext)
     val admin = AdminClient(settings)
     val notes = NotesRepository(AppDatabase.get(appContext).noteDao())
+
+    /** Синтезированные звуки игр. Флаг [SoundEngine.enabled] следует за настройкой звука. */
+    val sound = SoundEngine()
+
+    init {
+        appScope.launch {
+            settings.settings.collect { sound.enabled = it.soundEnabled }
+        }
+    }
 
     /**
      * Распознаватель и рекордер держат состояние микрофона, поэтому у каждого

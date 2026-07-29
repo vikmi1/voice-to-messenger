@@ -38,6 +38,7 @@ fun AppRoot(viewModel: MainViewModel) {
             }
             composable(Routes.GAMES) {
                 GamesScreen(
+                    viewModel = viewModel,
                     onBack = { navController.popBackStack() },
                     onOpen2048 = { navController.navigate(Routes.GAME_2048) },
                     onOpenSchulte = { navController.navigate(Routes.SCHULTE) },

@@ -27,19 +27,20 @@
     <string name="setup_body">Enter the backend address and API token from the admin panel — or switch to local processing in settings.</string>
     <string name="setup_open">Open settings</string>
     <string name="mic_start_cd">Start recording</string>
+    <string name="cd_rec_delete">Discard recording</string>
+    <string name="cd_rec_pause">Pause</string>
+    <string name="cd_rec_resume">Resume</string>
+    <string name="cd_rec_done">Done</string>
+    <string name="live_label">Hearing</string>
 
     <string name="status_idle">Tap and speak your message</string>
-    <string name="status_paused">Paused — tap “Resume”</string>
-    <string name="status_listening">Listening… tap “Done” when you’ve finished</string>
+    <string name="status_paused">Paused — tap the button to resume</string>
+    <string name="status_listening">Listening — the check on the right finishes</string>
     <string name="status_transcribing">Transcribing the recording…</string>
     <string name="status_processing">Preparing the message…</string>
     <string name="status_done">Done — check and send</string>
     <string name="status_failed">Didn’t work</string>
 
-    <string name="rec_resume">"  Resume"</string>
-    <string name="rec_pause">"  Pause"</string>
-    <string name="rec_stop">"  Done"</string>
-    <string name="rec_cancel">Cancel recording</string>
     <string name="rec_pause_hint">Pause works only with server recognition — switch it in settings</string>
 
     <string name="type_label">Type</string>
@@ -52,9 +53,6 @@
     <string name="style_mine">My style</string>
     <string name="style_friendly">Friendly</string>
     <string name="style_business">Business</string>
-
-    <string name="emoji_on">😊 Emojis on</string>
-    <string name="emoji_off">😊 Add emojis</string>
 
     <string name="translate_label">Translation</string>
     <string name="lang_off">No translation</string>
@@ -134,6 +132,10 @@
     <string name="game_2048_name">2048</string>
     <string name="schulte_name">Schulte tables</string>
     <string name="game_soon">Soon</string>
+    <string name="games_soon_section">Soon</string>
+    <string name="game_stat_record">Best %1$d</string>
+    <string name="game_stat_time">Best %1$s s</string>
+    <string name="game_stat_none">Not played yet</string>
 
     <!-- 2048 -->
     <string name="game_title">2048</string>

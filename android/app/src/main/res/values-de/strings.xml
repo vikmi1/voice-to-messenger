@@ -27,19 +27,20 @@
     <string name="setup_body">Gib die Backend-Adresse und das API-Token aus dem Admin-Panel ein — oder wechsle in den Einstellungen zur lokalen Verarbeitung.</string>
     <string name="setup_open">Einstellungen öffnen</string>
     <string name="mic_start_cd">Aufnahme starten</string>
+    <string name="cd_rec_delete">Aufnahme verwerfen</string>
+    <string name="cd_rec_pause">Pause</string>
+    <string name="cd_rec_resume">Fortsetzen</string>
+    <string name="cd_rec_done">Fertig</string>
+    <string name="live_label">Ich höre</string>
 
     <string name="status_idle">Tippe und sprich deine Nachricht</string>
-    <string name="status_paused">Pause — tippe auf „Fortsetzen“</string>
-    <string name="status_listening">Ich höre zu … tippe auf „Fertig“, wenn du so weit bist</string>
+    <string name="status_paused">Pause — zum Fortsetzen tippen</string>
+    <string name="status_listening">Ich höre zu — der Haken rechts beendet</string>
     <string name="status_transcribing">Aufnahme wird transkribiert …</string>
     <string name="status_processing">Nachricht wird vorbereitet …</string>
     <string name="status_done">Fertig — prüfen und senden</string>
     <string name="status_failed">Fehlgeschlagen</string>
 
-    <string name="rec_resume">"  Fortsetzen"</string>
-    <string name="rec_pause">"  Pause"</string>
-    <string name="rec_stop">"  Fertig"</string>
-    <string name="rec_cancel">Aufnahme abbrechen</string>
     <string name="rec_pause_hint">Pause funktioniert nur bei der Server-Erkennung — umschaltbar in den Einstellungen</string>
 
     <string name="type_label">Typ</string>
@@ -52,9 +53,6 @@
     <string name="style_mine">Mein Stil</string>
     <string name="style_friendly">Freundlich</string>
     <string name="style_business">Sachlich</string>
-
-    <string name="emoji_on">😊 Emojis an</string>
-    <string name="emoji_off">😊 Emojis hinzufügen</string>
 
     <string name="translate_label">Übersetzung</string>
     <string name="lang_off">Ohne Übersetzung</string>
@@ -134,6 +132,10 @@
     <string name="game_2048_name">2048</string>
     <string name="schulte_name">Schulte-Tabellen</string>
     <string name="game_soon">Bald</string>
+    <string name="games_soon_section">Bald</string>
+    <string name="game_stat_record">Rekord %1$d</string>
+    <string name="game_stat_time">Bestzeit %1$s s</string>
+    <string name="game_stat_none">Noch nicht gespielt</string>
 
     <!-- 2048 -->
     <string name="game_title">2048</string>

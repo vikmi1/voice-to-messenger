@@ -29,19 +29,20 @@
     <string name="setup_body">Укажи адрес бэкенда и API-токен из админ-панели — или переключись на локальную обработку в настройках.</string>
     <string name="setup_open">Открыть настройки</string>
     <string name="mic_start_cd">Начать запись</string>
+    <string name="cd_rec_delete">Стереть запись</string>
+    <string name="cd_rec_pause">Пауза</string>
+    <string name="cd_rec_resume">Продолжить</string>
+    <string name="cd_rec_done">Готово</string>
+    <string name="live_label">Слышу</string>
 
     <string name="status_idle">Нажми и наговори сообщение</string>
-    <string name="status_paused">Пауза — нажми «Продолжить»</string>
-    <string name="status_listening">Слушаю… нажми «Готово», когда закончишь</string>
+    <string name="status_paused">Пауза — нажми кнопку, чтобы продолжить</string>
+    <string name="status_listening">Слушаю — галочка справа завершит</string>
     <string name="status_transcribing">Расшифровываю запись…</string>
     <string name="status_processing">Готовлю сообщение…</string>
     <string name="status_done">Готово — проверь и отправь</string>
     <string name="status_failed">Не получилось</string>
 
-    <string name="rec_resume">"  Продолжить"</string>
-    <string name="rec_pause">"  Пауза"</string>
-    <string name="rec_stop">"  Готово"</string>
-    <string name="rec_cancel">Отменить запись</string>
     <string name="rec_pause_hint">Пауза работает только при распознавании на сервере — переключается в настройках</string>
 
     <string name="type_label">Тип</string>
@@ -54,9 +55,6 @@
     <string name="style_mine">Мой стиль</string>
     <string name="style_friendly">Дружелюбно</string>
     <string name="style_business">Деловой</string>
-
-    <string name="emoji_on">😊 Эмодзи включены</string>
-    <string name="emoji_off">😊 Добавить эмодзи</string>
 
     <string name="translate_label">Перевод</string>
     <string name="lang_off">Без перевода</string>
@@ -136,6 +134,10 @@
     <string name="game_2048_name">2048</string>
     <string name="schulte_name">Таблицы Шульте</string>
     <string name="game_soon">Скоро</string>
+    <string name="games_soon_section">Скоро</string>
+    <string name="game_stat_record">Рекорд %1$d</string>
+    <string name="game_stat_time">Лучшее %1$s с</string>
+    <string name="game_stat_none">Ещё не играли</string>
 
     <!-- 2048 -->
     <string name="game_title">2048</string>

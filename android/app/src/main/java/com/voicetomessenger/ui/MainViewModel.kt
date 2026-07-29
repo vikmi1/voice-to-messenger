@@ -111,13 +111,6 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun setEmoji(emoji: Boolean) {
-        viewModelScope.launch {
-            container.settings.setEmoji(emoji)
-            pipeline.reprocess()
-        }
-    }
-
     // --- Заметки ----------------------------------------------------------
 
     fun saveNote(text: String) {

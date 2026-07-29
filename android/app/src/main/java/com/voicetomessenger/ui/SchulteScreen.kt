@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,21 +19,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -140,78 +148,99 @@ fun SchulteScreen(viewModel: MainViewModel, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.schulte_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back),
+    Box(Modifier.fillMaxSize().auroraBackground()) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.schulte_title)) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                            )
+                        }
+                    },
+                )
+            },
+            contentWindowInsets = WindowInsets.safeDrawing,
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                SizeSelector(selected = size, onSelect = { size = it })
+
+                StatusRow(
+                    elapsedMs = elapsedMs,
+                    next = next,
+                    errors = errors,
+                    finished = resultMs != null,
+                )
+
+                // Доска квадратная и максимально большая в пределах свободного места — без прокрутки.
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val side = minOf(maxWidth, maxHeight)
+                    Board(
+                        numbers = numbers,
+                        size = size,
+                        correctIndex = correctIndex,
+                        wrongIndex = wrongIndex,
+                        onCell = onCell,
+                        modifier = Modifier.size(side),
+                    )
+                }
+
+                if (resultMs != null) {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.schulte_result, formatSeconds(elapsedMs)),
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.titleMedium,
                         )
                     }
-                },
-            )
-        },
-        contentWindowInsets = WindowInsets.safeDrawing,
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            SizeSelector(selected = size, onSelect = { size = it })
-
-            StatusRow(
-                elapsedMs = elapsedMs,
-                next = next,
-                errors = errors,
-                finished = resultMs != null,
-            )
-
-            // Доска квадратная и максимально большая в пределах свободного места — без прокрутки.
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                val side = minOf(maxWidth, maxHeight)
-                Board(
-                    numbers = numbers,
-                    size = size,
-                    correctIndex = correctIndex,
-                    wrongIndex = wrongIndex,
-                    onCell = onCell,
-                    modifier = Modifier.size(side),
-                )
-            }
-
-            Text(
-                text = if (resultMs != null) {
-                    stringResource(R.string.schulte_result, formatSeconds(elapsedMs))
                 } else {
-                    stringResource(R.string.schulte_hint)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (resultMs != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = if (resultMs != null) FontWeight.Bold else FontWeight.Normal,
-                textAlign = TextAlign.Center,
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Button(onClick = { attempt += 1 }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.schulte_new_attempt))
+                    Text(
+                        text = stringResource(R.string.schulte_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
-                OutlinedButton(onClick = { showProgress = true }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.schulte_progress))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Button(
+                        onClick = { attempt += 1 },
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.schulte_new_attempt))
+                    }
+                    OutlinedButton(
+                        onClick = { showProgress = true },
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.schulte_progress))
+                    }
                 }
             }
         }
@@ -226,17 +255,57 @@ fun SchulteScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SizeSelector(selected: Int, onSelect: (Int) -> Unit) {
-    Row(
+    val colors = brandSegmentedColors()
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        SCHULTE_SIZES.forEachIndexed { index, value ->
+            SegmentedButton(
+                selected = value == selected,
+                onClick = { onSelect(value) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = SCHULTE_SIZES.size),
+                colors = colors,
+                icon = {},
+                label = { Text("$value×$value", style = MaterialTheme.typography.labelLarge) },
+            )
+        }
+    }
+}
+
+/** Время, ошибки и следующее число — одной панелью, чтобы взгляд не искал их по экрану. */
+@Composable
+private fun StatusRow(elapsedMs: Long, next: Int, errors: Int, finished: Boolean) {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shadowElevation = 2.dp,
     ) {
-        SCHULTE_SIZES.forEach { s ->
-            FilterChip(
-                selected = s == selected,
-                onClick = { onSelect(s) },
-                label = { Text("${s}×$s") },
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Stat(
+                label = stringResource(R.string.schulte_timer),
+                value = formatSeconds(elapsedMs),
+                modifier = Modifier.weight(1f),
+            )
+            StatDivider()
+            Stat(
+                label = stringResource(R.string.schulte_errors),
+                value = errors.toString(),
+                // Ноль ошибок не кричит красным: подсвечиваем счётчик, только когда есть что считать.
+                valueColor = if (errors > 0) GamePalette.Wrong else null,
+                modifier = Modifier.weight(1f),
+            )
+            StatDivider()
+            Stat(
+                label = stringResource(R.string.schulte_next),
+                value = if (finished) "✓" else next.toString(),
+                valueColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -244,47 +313,26 @@ private fun SizeSelector(selected: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun StatusRow(elapsedMs: Long, next: Int, errors: Int, finished: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Badge(
-            label = stringResource(R.string.schulte_timer),
-            value = formatSeconds(elapsedMs),
-        )
-        Badge(
-            label = stringResource(R.string.schulte_errors),
-            value = errors.toString(),
-            // Ноль ошибок не кричит красным: подсвечиваем счётчик, только когда есть что считать.
-            valueColor = if (errors > 0) GamePalette.Wrong else null,
-        )
-        Badge(
-            label = stringResource(R.string.schulte_next),
-            value = if (finished) "✓" else next.toString(),
-            emphasize = true,
+private fun Stat(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        SectionLabel(label)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
         )
     }
 }
 
 @Composable
-private fun Badge(
-    label: String,
-    value: String,
-    emphasize: Boolean = false,
-    valueColor: Color? = null,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            value,
-            style = if (emphasize) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = valueColor
-                ?: if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
-    }
+private fun StatDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(34.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+    )
 }
 
 @Composable
@@ -296,10 +344,11 @@ private fun Board(
     onCell: (Int) -> Unit,
     modifier: Modifier,
 ) {
-    val gap = if (size >= 6) 4.dp else 6.dp
+    val gap = if (size >= 6) 5.dp else 7.dp
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
+            .shadow(10.dp, BOARD_SHAPE, spotColor = GamePalette.TextDark)
+            .clip(BOARD_SHAPE)
             .background(GamePalette.Board)
             .padding(gap),
         verticalArrangement = Arrangement.spacedBy(gap),
@@ -346,7 +395,7 @@ private fun Cell(
     }
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(CELL_SHAPE)
             .background(background)
             // Ripple убран: он держится дольше вспышки и подсвечивал бы уже нажатые ячейки.
             .clickable(
@@ -412,17 +461,22 @@ private fun ProgressChart(times: List<Long>) {
         val n = times.size
         val slot = this.size.width / n
         val barWidth = slot * 0.6f
+        val radius = CornerRadius(barWidth / 3f, barWidth / 3f)
         times.forEachIndexed { i, t ->
             val h = (t / max) * this.size.height
             val x = i * slot + (slot - barWidth) / 2f
-            drawRect(
+            drawRoundRect(
                 color = if (t == best) gold else accent,
                 topLeft = Offset(x, this.size.height - h),
                 size = Size(barWidth, h),
+                cornerRadius = radius,
             )
         }
     }
 }
+
+private val BOARD_SHAPE = RoundedCornerShape(20.dp)
+private val CELL_SHAPE = RoundedCornerShape(10.dp)
 
 private fun cellFontSize(size: Int) = when (size) {
     3 -> 34.sp

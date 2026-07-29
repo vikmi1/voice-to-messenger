@@ -1,39 +1,53 @@
 package com.voicetomessenger.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -89,67 +103,110 @@ fun Game2048Screen(viewModel: MainViewModel, onBack: () -> Unit) {
         viewModel.persistGame2048(fresh)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.game_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back),
-                        )
-                    }
-                },
-            )
-        },
-        contentWindowInsets = WindowInsets.safeDrawing,
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Box(Modifier.fillMaxSize().auroraBackground()) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.game_title)) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                            )
+                        }
+                    },
+                )
+            },
+            contentWindowInsets = WindowInsets.safeDrawing,
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                ScoreBox(stringResource(R.string.game_score), current.score, Modifier.weight(1f))
-                ScoreBox(stringResource(R.string.game_best), maxOf(best, current.score), Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ScoreBox(
+                        label = stringResource(R.string.game_score),
+                        value = current.score,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ScoreBox(
+                        label = stringResource(R.string.game_best),
+                        value = maxOf(best, current.score),
+                        accent = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Box(Modifier.fillMaxWidth()) {
+                    Board(state = current, onSwipe = onMove)
+                    if (current.over) {
+                        GameOverOverlay(onNewGame = onNewGame)
+                    }
+                }
+
+                Text(
+                    text = if (current.won) {
+                        stringResource(R.string.game_won)
+                    } else {
+                        stringResource(R.string.game_hint)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (current.won) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontWeight = if (current.won) FontWeight.Bold else FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                )
+
+                FilledTonalButton(onClick = onNewGame, shape = MaterialTheme.shapes.medium) {
+                    Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.game_new))
+                }
             }
-
-            Board(state = current, onSwipe = onMove)
-
-            Text(
-                text = when {
-                    current.over -> stringResource(R.string.game_over)
-                    current.won -> stringResource(R.string.game_won)
-                    else -> stringResource(R.string.game_hint)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-
-            Button(onClick = onNewGame) { Text(stringResource(R.string.game_new)) }
         }
     }
 }
 
+/** Счёт и рекорд: два одинаковых по весу блока, рекорд подсвечен янтарём. */
 @Composable
-private fun ScoreBox(label: String, value: Int, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun ScoreBox(label: String, value: Int, modifier: Modifier = Modifier, accent: Boolean = false) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shadowElevation = 2.dp,
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SectionLabel(label)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = if (accent) {
+                    MaterialTheme.colorScheme.tertiary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
     }
 }
 
@@ -159,7 +216,8 @@ private fun Board(state: GameState, onSwipe: (Direction) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(10.dp))
+            .shadow(10.dp, BOARD_SHAPE, spotColor = GamePalette.TextDark)
+            .clip(BOARD_SHAPE)
             .background(BOARD_COLOR)
             .padding(GAP)
             // Направление определяем по всему жесту, а не по первому кадру: короткий
@@ -209,11 +267,48 @@ private fun Board(state: GameState, onSwipe: (Direction) -> Unit) {
     }
 }
 
+/** Конец партии: доска гаснет под шторкой, выход один — начать заново. */
+@Composable
+private fun BoxScope.GameOverOverlay(onNewGame: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .clip(BOARD_SHAPE)
+            .background(GamePalette.Board.copy(alpha = 0.88f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = stringResource(R.string.game_over),
+                style = MaterialTheme.typography.headlineSmall,
+                color = GamePalette.TextLight,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onNewGame, shape = MaterialTheme.shapes.medium) {
+                Text(stringResource(R.string.game_new))
+            }
+        }
+    }
+}
+
+/** Плитка. Новая или слитая — коротко «выпрыгивает»: ход становится заметен без анимации сдвига. */
 @Composable
 private fun Tile(value: Int, modifier: Modifier) {
+    val pop = remember { Animatable(1f) }
+    var previous by remember { mutableIntStateOf(value) }
+    LaunchedEffect(value) {
+        if (value != 0 && value != previous) {
+            pop.snapTo(0.8f)
+            pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
+        }
+        previous = value
+    }
+
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .scale(pop.value)
+            .clip(TILE_SHAPE)
             .background(tileBackground(value)),
         contentAlignment = Alignment.Center,
     ) {
@@ -239,7 +334,9 @@ private val BOARD_COLOR = GamePalette.Board
 private val EMPTY_CELL = GamePalette.EmptyCell
 private val TILE_TEXT_DARK = GamePalette.TextDark
 private val TILE_TEXT_LIGHT = GamePalette.TextLight
-private val GAP = 6.dp
+private val GAP = 7.dp
+private val BOARD_SHAPE = RoundedCornerShape(20.dp)
+private val TILE_SHAPE = RoundedCornerShape(10.dp)
 
 private fun tileBackground(value: Int): Color = when (value) {
     0 -> EMPTY_CELL

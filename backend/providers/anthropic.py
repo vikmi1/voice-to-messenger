@@ -30,6 +30,7 @@ def _headers(api_key: str) -> dict:
 class AnthropicProvider(LlmProvider):
     def __init__(self, base_url: str, api_key: str, model: str, temperature: float | None = None,
                  max_tokens: int = DEFAULT_MAX_TOKENS):
+        super().__init__()
         self.base_url = (base_url or "https://api.anthropic.com/v1").rstrip("/")
         self.api_key = api_key or ""
         self.model = model
@@ -42,6 +43,7 @@ class AnthropicProvider(LlmProvider):
         if not self.api_key:
             raise RuntimeError("Не задан API-ключ активного провайдера (заполни в админ-панели).")
 
+        self.last_usage = {}
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -66,7 +68,21 @@ class AnthropicProvider(LlmProvider):
                 except json.JSONDecodeError:
                     continue
                 kind = obj.get("type")
-                if kind == "content_block_delta":
+                # Расход приходит двумя порциями: вход известен сразу (message_start),
+                # выход — накопительным итогом в последнем message_delta.
+                if kind == "message_start":
+                    usage = (obj.get("message") or {}).get("usage") or {}
+                    self.last_usage = {
+                        "input_tokens": usage.get("input_tokens") or 0,
+                        "output_tokens": usage.get("output_tokens") or 0,
+                        "cached_tokens": usage.get("cache_read_input_tokens") or 0,
+                        "cache_write_tokens": usage.get("cache_creation_input_tokens") or 0,
+                    }
+                elif kind == "message_delta":
+                    usage = obj.get("usage") or {}
+                    if usage.get("output_tokens") is not None:
+                        self.last_usage["output_tokens"] = usage["output_tokens"]
+                elif kind == "content_block_delta":
                     delta = obj.get("delta") or {}
                     if delta.get("type") == "text_delta" and delta.get("text"):
                         yield delta["text"]

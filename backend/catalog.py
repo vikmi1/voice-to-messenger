@@ -10,8 +10,13 @@
 Провайдер узнаётся по base_url: ключ в конфиге может быть любым («groq», «work»),
 а адрес API — нет.
 
-Цены — из официальных прайсов на 31.07.2026, в долларах США.
+Цены — из официальных прайсов на 31.07.2026, в долларах США. У каждой модели две
+формы записи: `price` — строка для человека (в ней бывают оговорки вроде «до такой-то
+даты»), `in`/`out`/`per_min` — числа для подсчёта расхода. Строка ведущая: если правишь
+цену, правь обе.
 """
+
+import math
 
 BUDGET = "budget"
 BALANCED = "balanced"
@@ -23,59 +28,71 @@ TIER_TITLES = {
     PREMIUM: "премиум",
 }
 
+# Курс кредита: 1 кредит = одна десятая цента. Взят так, чтобы обычное сообщение
+# стоило единицы кредитов, а не тысячные доли — число должно читаться человеком.
+# Ориентиры при этом курсе: сообщение на бюджетной связке ≈ 4 кредита, на премиальной ≈ 21.
+CREDIT_USD = 0.001
+
 # Внутри каждого списка порядок = порядок рекомендации: первая модель считается
 # разумным выбором по умолчанию, дальше — альтернативы.
 CATALOG = [
     {
         "match": "api.openai.com",
+        # Во сколько раз дешевле входной токен, прочитанный из кэша промпта.
+        # У OpenAI кэш включается сам от 1024 токенов промпта и даёт примерно половину цены.
+        "cache_read_factor": 0.5,
         "llm": [
-            {"id": "gpt-4o-mini", "tier": BUDGET,
+            {"id": "gpt-4o-mini", "tier": BUDGET, "in": 0.15, "out": 0.60,
              "price": "$0.15 / $0.60 за 1M", "note": "дёшево и достаточно для коротких сообщений"},
-            {"id": "gpt-5.6-luna", "tier": BUDGET,
+            {"id": "gpt-5.6-luna", "tier": BUDGET, "in": 0.20, "out": 1.20,
              "price": "$0.20 / $1.20 за 1M", "note": "новое поколение почти по цене mini"},
-            {"id": "gpt-5.6-terra", "tier": BALANCED,
+            {"id": "gpt-5.6-terra", "tier": BALANCED, "in": 2.0, "out": 12.0,
              "price": "$2 / $12 за 1M", "note": "баланс качества и цены"},
-            {"id": "gpt-5.6-sol", "tier": PREMIUM,
+            {"id": "gpt-5.6-sol", "tier": PREMIUM, "in": 5.0, "out": 30.0,
              "price": "$5 / $30 за 1M", "note": "флагман, для сложных и длинных текстов"},
         ],
         "asr": [
-            {"id": "gpt-transcribe", "tier": BALANCED,
+            {"id": "gpt-transcribe", "tier": BALANCED, "per_min": 0.0045,
              "price": "$0.0045 / мин", "note": "рекомендуемая OpenAI, точнее Whisper"},
-            {"id": "gpt-4o-mini-transcribe", "tier": BUDGET,
+            {"id": "gpt-4o-mini-transcribe", "tier": BUDGET, "per_min": 0.003,
              "price": "$0.003 / мин", "note": "самая дешёвая"},
-            {"id": "whisper-1", "tier": BALANCED,
+            {"id": "whisper-1", "tier": BALANCED, "per_min": 0.006,
              "price": "$0.006 / мин", "note": "классика, максимум совместимости"},
-            {"id": "gpt-4o-transcribe", "tier": PREMIUM,
+            {"id": "gpt-4o-transcribe", "tier": PREMIUM, "per_min": 0.006,
              "price": "$0.006 / мин", "note": "предыдущее поколение точных моделей"},
         ],
     },
     {
         "match": "api.mistral.ai",
+        # Кэш промпта у Mistral не заявлен — считаем такие токены по полной цене.
+        "cache_read_factor": 1.0,
         "llm": [
-            {"id": "mistral-small-latest", "tier": BUDGET,
+            {"id": "mistral-small-latest", "tier": BUDGET, "in": 0.15, "out": 0.60,
              "price": "$0.15 / $0.60 за 1M", "note": "Small 4, рабочая лошадка"},
-            {"id": "ministral-8b-latest", "tier": BUDGET,
+            {"id": "ministral-8b-latest", "tier": BUDGET, "in": 0.15, "out": 0.15,
              "price": "$0.15 / $0.15 за 1M", "note": "самая дешёвая на выходе"},
-            {"id": "mistral-large-latest", "tier": BALANCED,
+            {"id": "mistral-large-latest", "tier": BALANCED, "in": 0.50, "out": 1.50,
              "price": "$0.50 / $1.50 за 1M", "note": "Large 3, флагман — и дешевле Medium"},
-            {"id": "mistral-medium-latest", "tier": PREMIUM,
+            {"id": "mistral-medium-latest", "tier": PREMIUM, "in": 1.50, "out": 7.50,
              "price": "$1.50 / $7.50 за 1M", "note": "Medium 3.5, самая дорогая у Mistral"},
         ],
         "asr": [
-            {"id": "voxtral-mini-latest", "tier": BUDGET,
+            {"id": "voxtral-mini-latest", "tier": BUDGET, "per_min": 0.003,
              "price": "$0.003 / мин", "note": "Voxtral Mini Transcribe 2, 13 языков"},
-            {"id": "voxtral-small-latest", "tier": BALANCED,
+            {"id": "voxtral-small-latest", "tier": BALANCED, "per_min": 0.004,
              "price": "$0.004 / мин", "note": "крупнее, понимает контекст"},
         ],
     },
     {
         "match": "api.anthropic.com",
+        # Чтение из кэша промпта у Anthropic — десятая часть цены обычного входа.
+        "cache_read_factor": 0.1,
         "llm": [
-            {"id": "claude-haiku-4-5", "tier": BUDGET,
+            {"id": "claude-haiku-4-5", "tier": BUDGET, "in": 1.0, "out": 5.0,
              "price": "$1 / $5 за 1M", "note": "самая дешёвая у Anthropic"},
-            {"id": "claude-sonnet-5", "tier": BALANCED,
+            {"id": "claude-sonnet-5", "tier": BALANCED, "in": 2.0, "out": 10.0,
              "price": "$2 / $10 за 1M (до 01.09.2026, дальше $3 / $15)", "note": "рабочий выбор"},
-            {"id": "claude-opus-5", "tier": PREMIUM,
+            {"id": "claude-opus-5", "tier": PREMIUM, "in": 5.0, "out": 25.0,
              "price": "$5 / $25 за 1M", "note": "флагман"},
         ],
         # У Anthropic нет эндпоинта транскрипции — распознавать речь нечем.
@@ -97,3 +114,46 @@ def default_asr_model(base_url: str) -> str:
     """Рекомендуемая модель распознавания — первая в списке. Пусто, если провайдер её не умеет."""
     asr = for_base_url(base_url).get("asr") or []
     return asr[0]["id"] if asr else ""
+
+
+def _find(base_url: str, kind: str, model: str) -> dict | None:
+    model = (model or "").strip()
+    for item in for_base_url(base_url).get(kind) or []:
+        if item["id"] == model:
+            return item
+    return None
+
+
+def llm_cost_usd(base_url: str, model: str, input_tokens: int, output_tokens: int,
+                 cached_tokens: int = 0) -> float | None:
+    """Стоимость генерации в долларах. None — если модели нет в каталоге (цена неизвестна).
+
+    Токены, прочитанные из кэша промпта, приходят внутри input_tokens и тарифицируются
+    дешевле — вычитаем их и добавляем со скидкой провайдера.
+    """
+    entry = _find(base_url, "llm", model)
+    if not entry:
+        return None
+    cached = max(0, min(cached_tokens or 0, input_tokens or 0))
+    plain = (input_tokens or 0) - cached
+    factor = for_base_url(base_url).get("cache_read_factor", 1.0)
+    return (
+        plain / 1_000_000 * entry["in"]
+        + cached / 1_000_000 * entry["in"] * factor
+        + (output_tokens or 0) / 1_000_000 * entry["out"]
+    )
+
+
+def asr_cost_usd(base_url: str, model: str, seconds: float | None) -> float | None:
+    """Стоимость распознавания в долларах. None — если модель или длительность неизвестны."""
+    entry = _find(base_url, "asr", model)
+    if not entry or not seconds:
+        return None
+    return seconds / 60 * entry["per_min"]
+
+
+def credits(usd: float | None) -> int | None:
+    """Доллары → кредиты, вверх до целого. Ненулевой расход никогда не показывается нулём."""
+    if usd is None:
+        return None
+    return max(1, math.ceil(usd / CREDIT_USD)) if usd > 0 else 0

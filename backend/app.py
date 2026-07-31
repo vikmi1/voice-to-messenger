@@ -5,11 +5,13 @@
   POST /api/process       — текст → чистое сообщение (стриминг), Bearer-токен
   GET  /api/options       — стили и языки для приложения, Bearer-токен
   POST /api/transcribe    — аудио → сырой текст (Whisper), Bearer-токен
+  GET  /api/usage/<id>    — расход конкретного запроса, Bearer-токен
   GET  /admin             — админ-панель (Basic Auth)
   GET  /admin/api/config  — текущая конфигурация (админ-доступ)
   POST /admin/api/config  — сохранить конфигурацию (админ-доступ)
   GET  /admin/api/models  — список моделей провайдера (админ-доступ)
   GET  /admin/api/catalog — подобранные модели с ценами для выпадашек (админ-доступ)
+  GET  /admin/api/usage   — сводка расхода за период (админ-доступ)
   POST /admin/api/test    — прогнать текст через текущие настройки (админ-доступ)
 
 Админ-доступ — это Basic Auth (веб) ИЛИ заголовок X-Admin-Token (приложение).
@@ -18,12 +20,14 @@
 import functools
 import os
 import secrets
+import uuid
 
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
 
 import catalog
 import config_store
+import usage_store
 from prompts import build_system
 from providers import anthropic as anthropic_provider
 from providers.anthropic import AnthropicProvider
@@ -39,6 +43,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-insecure-key")
 
 config_store.init_db()
+usage_store.init_db()
 if ADMIN_PASS == "changeme":
     app.logger.warning("ADMIN_PASS не задан — используется небезопасный пароль по умолчанию!")
 
@@ -148,17 +153,53 @@ def api_process():
         examples=_examples(data), emoji=bool(data.get("emoji")), as_list=bool(data.get("as_list")),
     )
 
-    prov = cfg["providers"][cfg["active_provider"]]
-    provider = make_provider(cfg["active_provider"], prov)
+    name = cfg["active_provider"]
+    prov = cfg["providers"][name]
+    provider = make_provider(name, prov)
+
+    # Всё, что нужно журналу, снимаем здесь: генератор ниже работает уже вне
+    # контекста запроса, там ни request, ни cfg трогать нельзя.
+    usage_id = uuid.uuid4().hex
+    meta = {
+        "id": usage_id, "op": "process", "provider": name,
+        "base_url": prov.get("base_url") or "", "model": prov.get("model") or "",
+        "style": style_id, "target_lang": target,
+    }
 
     def generate():
+        ok, error = 1, None
         try:
             for chunk in provider.stream(system, text):
                 yield chunk
         except Exception as exc:  # noqa: BLE001 — отдаём ошибку в поток
+            ok, error = 0, str(exc)
             yield f"\n[Ошибка обработки: {exc}]"
+        finally:
+            # finally, а не хвост try: сюда попадаем и когда клиент отвалился на середине —
+            # токены к этому моменту уже потрачены и должны попасть в журнал.
+            usage_store.record(**meta, ok=ok, error=error, **provider.last_usage)
 
-    return Response(generate(), mimetype="text/plain; charset=utf-8")
+    return Response(
+        generate(),
+        mimetype="text/plain; charset=utf-8",
+        # Заголовки уходят до тела, поэтому приложение знает id ещё до конца стрима
+        # и может спросить стоимость через /api/usage/<id>, когда текст дочитан.
+        headers={"X-Usage-Id": usage_id},
+    )
+
+
+@app.get("/api/usage/<usage_id>")
+@require_token
+def api_usage(usage_id: str):
+    """Сколько стоил конкретный запрос — для строки «потрачено кредитов» в приложении."""
+    row = usage_store.get(usage_id)
+    if not row:
+        return jsonify(error="unknown usage id"), 404
+    return jsonify(
+        id=row["id"], credits=row["credits"], usd=row["usd"],
+        input_tokens=row["input_tokens"], output_tokens=row["output_tokens"],
+        audio_seconds=row["audio_seconds"],
+    )
 
 
 @app.get("/api/options")
@@ -205,17 +246,36 @@ def api_transcribe():
         "transcribe: provider=%s model=%s filename=%s mime=%s size=%d",
         asr_name, model, audio.filename, audio.mimetype, len(file_bytes),
     )
+    usage_id = uuid.uuid4().hex
+    meta = {
+        "id": usage_id, "op": "transcribe", "provider": asr_name,
+        "base_url": prov.get("base_url") or "", "model": model,
+        "audio_bytes": len(file_bytes),
+    }
     try:
-        text = transcribe_audio(
+        result = transcribe_audio(
             prov["base_url"], resolve_api_key(asr_name, prov), model,
             file_bytes, filename=audio.filename or "audio.m4a",
             content_type=audio.mimetype or "audio/m4a",
         )
     except Exception as exc:  # noqa: BLE001
         app.logger.error("transcribe error: %s", exc, exc_info=True)
+        # Неудачный запрос тоже пишем: провайдер мог успеть посчитать аудио, а нам важно
+        # видеть, что деньги ушли в ошибку.
+        usage_store.record(**meta, ok=0, error=str(exc),
+                           audio_seconds=usage_store.estimate_seconds(len(file_bytes)),
+                           audio_seconds_source="estimate")
         return jsonify(error=str(exc)), 502
-    app.logger.info("transcribe ok: %d chars", len(text))
-    return jsonify(text=text)
+
+    # Длительность от провайдера точна, оценка по размеру файла — нет, но она есть всегда
+    # и её достаточно, чтобы видеть порядок расхода. Источник пишем рядом, чтобы потом
+    # не гадать, откуда взялась цифра.
+    seconds = result.seconds if result.seconds is not None else usage_store.estimate_seconds(len(file_bytes))
+    usage_store.record(**meta, audio_seconds=seconds,
+                       audio_seconds_source="provider" if result.seconds is not None else "estimate")
+
+    app.logger.info("transcribe ok: %d chars", len(result.text))
+    return jsonify(text=result.text, usage_id=usage_id)
 
 
 # --- Админ-панель ----------------------------------------------------------
@@ -304,12 +364,37 @@ def admin_test():
         examples=_examples(data), emoji=bool(data.get("emoji")), as_list=bool(data.get("as_list")),
     )
 
+    provider = make_provider(name, prov)
+    # Прогоны из панели тоже стоят денег и тоже идут в журнал (op='test'), иначе
+    # сравнение моделей тратило бы бюджет невидимо для отчёта.
+    meta = {
+        "id": uuid.uuid4().hex, "op": "test", "provider": name,
+        "base_url": prov.get("base_url") or "", "model": prov["model"],
+        "style": style_id, "target_lang": target,
+    }
     try:
-        result = "".join(make_provider(name, prov).stream(system, text))
+        result = "".join(provider.stream(system, text))
     except Exception as exc:  # noqa: BLE001
         app.logger.error("test error: %s", exc, exc_info=True)
+        usage_store.record(**meta, ok=0, error=str(exc), **provider.last_usage)
         return jsonify(error=str(exc)), 502
-    return jsonify(text=result, provider=name, model=prov["model"])
+    usage_store.record(**meta, **provider.last_usage)
+
+    row = usage_store.get(meta["id"]) or {}
+    return jsonify(text=result, provider=name, model=prov["model"],
+                   credits=row.get("credits"), usd=row.get("usd"),
+                   input_tokens=row.get("input_tokens"), output_tokens=row.get("output_tokens"))
+
+
+@app.get("/admin/api/usage")
+@require_admin_api
+def admin_usage():
+    """Сводка расхода за период — для вкладки «Расход» в панелях."""
+    def as_int(key: str, default: int, top: int) -> int:
+        raw = request.args.get(key)
+        return min(top, max(1, int(raw))) if (raw or "").isdigit() else default
+
+    return jsonify(usage_store.report(days=as_int("days", 30, 365), limit=as_int("limit", 100, 500)))
 
 
 if __name__ == "__main__":

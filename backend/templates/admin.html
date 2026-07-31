@@ -35,6 +35,17 @@
            transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
   code { background: #0f1115; padding: 2px 6px; border-radius: 5px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
+  .stat { background: #0f1115; border: 1px solid #262a33; border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 20px; font-weight: 600; }
+  .stat span { color: #7a8089; font-size: 12px; }
+  /* Таблицы расхода шире экрана телефона — прокручиваем их, а не страницу. */
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #21252e; white-space: nowrap; }
+  th { color: #7a8089; font-weight: 500; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.failed td { color: #e0736b; }
   @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -52,6 +63,7 @@
     <button data-tab="styles">Стили</button>
     <button data-tab="languages">Языки</button>
     <button data-tab="test">Тест</button>
+    <button data-tab="usage">Расход</button>
     <button data-tab="app">Приложение</button>
   </div>
 
@@ -119,6 +131,44 @@
     </div>
   </div>
 
+  <div id="usage" class="panel">
+    <div class="card">
+      <div class="prov-head">
+        <div>
+          <label style="margin:0;">Период</label>
+          <select id="usage_days" style="width:auto;" onchange="loadUsage()">
+            <option value="7">7 дней</option>
+            <option value="30" selected>30 дней</option>
+            <option value="90">90 дней</option>
+            <option value="365">год</option>
+          </select>
+        </div>
+        <button class="btn secondary small" onclick="loadUsage()">Обновить</button>
+      </div>
+      <div class="stats" id="usage_totals"></div>
+      <p class="muted" id="usage_note"></p>
+    </div>
+
+    <div class="card">
+      <label>По моделям</label>
+      <div class="scroll"><table id="usage_models"></table></div>
+    </div>
+
+    <div class="card">
+      <label>По дням</label>
+      <div class="scroll"><table id="usage_days_table"></table></div>
+    </div>
+
+    <div class="card">
+      <label>Последние запросы</label>
+      <div class="scroll"><table id="usage_recent"></table></div>
+      <p class="muted" style="margin-top:10px;">Токены хранятся сырыми, деньги считаются на
+        лету по текущему каталогу цен — правка цены пересчитывает всю историю. Прочерк в
+        колонке стоимости значит, что модели нет в каталоге и цена неизвестна; звёздочка —
+        что в группу попали и такие запросы, поэтому сумма занижена.</p>
+    </div>
+  </div>
+
   <div id="app" class="panel">
     <div class="card">
       <label>API-токен (вставь его в приложение, поле «токен сервера»)</label>
@@ -155,6 +205,9 @@ document.querySelectorAll(".tabs button").forEach(b => {
     document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
     b.classList.add("active");
     document.getElementById(b.dataset.tab).classList.add("active");
+    // Расход тянем при открытии вкладки, а не при загрузке страницы: запрос
+    // перебирает все строки за период, а панель чаще открывают ради настроек.
+    if (b.dataset.tab === "usage") loadUsage();
   };
 });
 
@@ -408,11 +461,94 @@ async function runTest() {
   const data = await r.json();
   if (r.ok) {
     out.value = data.text;
-    meta.textContent = `${data.provider} · ${data.model}`;
+    const spent = data.credits == null ? "цена неизвестна"
+      : `${data.credits} кред. · ${money(data.usd)} · ${data.input_tokens}→${data.output_tokens} токенов`;
+    meta.textContent = `${data.provider} · ${data.model} · ${spent}`;
   } else {
     out.value = "";
     meta.textContent = data.error || "Ошибка";
   }
+}
+
+// --- Расход ---------------------------------------------------------------
+
+function money(usd) {
+  if (usd == null) return "—";
+  // Меньше цента показываем в центах: $0.0004 нечитаемо, 0.04 ¢ — понятно.
+  return usd < 0.01 ? `${(usd * 100).toFixed(2)} ¢` : `$${usd.toFixed(2)}`;
+}
+
+/** Сумма по группе, где часть запросов могла остаться без цены.
+ *  Все без цены — прочерк: ноль читался бы как «бесплатно». Часть — звёздочка. */
+function groupMoney(row) {
+  if (row.unpriced >= row.requests) return "—";
+  return money(row.usd) + (row.unpriced ? " *" : "");
+}
+
+function hms(seconds) {
+  if (!seconds) return "—";
+  const m = Math.floor(seconds / 60);
+  return m ? `${m} мин ${Math.round(seconds % 60)} с` : `${Math.round(seconds)} с`;
+}
+
+function table(el, columns, rows, rowClass) {
+  const head = columns.map(c => `<th class="${c.num ? "num" : ""}">${c.title}</th>`).join("");
+  const body = rows.map(r => {
+    const cells = columns.map(c => `<td class="${c.num ? "num" : ""}">${c.get(r)}</td>`).join("");
+    return `<tr class="${rowClass ? rowClass(r) : ""}">${cells}</tr>`;
+  }).join("");
+  el.innerHTML = rows.length
+    ? `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`
+    : `<tbody><tr><td class="muted">Пока пусто</td></tr></tbody>`;
+}
+
+async function loadUsage() {
+  const days = document.getElementById("usage_days").value;
+  const r = await fetch("/admin/api/usage?days=" + days);
+  if (!r.ok) { toast("Не удалось загрузить расход"); return; }
+  const d = await r.json();
+  const t = d.total;
+
+  document.getElementById("usage_totals").innerHTML = [
+    [t.credits ?? "—", "кредитов"],
+    [money(t.usd), "в долларах"],
+    [t.requests, "запросов"],
+    [`${(t.input_tokens / 1000).toFixed(1)}k`, "токенов входа"],
+    [`${(t.output_tokens / 1000).toFixed(1)}k`, "токенов выхода"],
+    [hms(t.audio_seconds), "аудио"],
+  ].map(([v, n]) => `<div class="stat"><b>${v}</b><span>${n}</span></div>`).join("");
+
+  const notes = [`1 кредит = $${d.credit_usd}`];
+  if (t.errors) notes.push(`запросов с ошибкой: ${t.errors}`);
+  if (t.unpriced) notes.push(`без цены (модели нет в каталоге): ${t.unpriced}`);
+  if (t.cached_tokens) notes.push(`из входа прочитано из кэша: ${t.cached_tokens}`);
+  document.getElementById("usage_note").textContent = notes.join(" · ");
+
+  table(document.getElementById("usage_models"), [
+    { title: "Провайдер / модель", get: r => r.key },
+    { title: "Запросов", num: true, get: r => r.requests },
+    { title: "Вход", num: true, get: r => r.input_tokens || "—" },
+    { title: "Выход", num: true, get: r => r.output_tokens || "—" },
+    { title: "Аудио", num: true, get: r => hms(r.audio_seconds) },
+    { title: "Стоимость", num: true, get: groupMoney },
+  ], d.by_model);
+
+  table(document.getElementById("usage_days_table"), [
+    { title: "День", get: r => r.day },
+    { title: "Запросов", num: true, get: r => r.requests },
+    { title: "Стоимость", num: true, get: groupMoney },
+  ], d.by_day);
+
+  table(document.getElementById("usage_recent"), [
+    // В базе время в UTC — показываем в местном поясе того, кто смотрит панель.
+    { title: "Когда", get: r => new Date(r.ts).toLocaleString() },
+    { title: "Что", get: r => ({ process: "обработка", transcribe: "распознавание", test: "тест" }[r.op] || r.op) },
+    { title: "Модель", get: r => r.model },
+    { title: "Вход", num: true, get: r => r.input_tokens || "—" },
+    { title: "Выход", num: true, get: r => r.output_tokens || "—" },
+    { title: "Аудио", num: true, get: r => hms(r.audio_seconds) },
+    { title: "Кредиты", num: true, get: r => r.credits ?? "—" },
+  ], d.recent, r => r.ok ? "" : "failed");
 }
 
 function collect() {

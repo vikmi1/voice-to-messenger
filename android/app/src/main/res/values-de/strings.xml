@@ -65,6 +65,10 @@
 
     <string name="result_label">Fertige Nachricht</string>
     <string name="result_streaming">Text wird noch geschrieben …</string>
+    <plurals name="result_spent">
+        <item quantity="one">%d Credit verbraucht</item>
+        <item quantity="other">%d Credits verbraucht</item>
+    </plurals>
     <string name="error_retry">Erneut versuchen</string>
 
     <!-- Einstellungen -->

@@ -65,6 +65,10 @@
 
     <string name="result_label">Ready message</string>
     <string name="result_streaming">Still being written…</string>
+    <plurals name="result_spent">
+        <item quantity="one">%d credit spent</item>
+        <item quantity="other">%d credits spent</item>
+    </plurals>
     <string name="error_retry">Try again</string>
 
     <!-- Settings -->

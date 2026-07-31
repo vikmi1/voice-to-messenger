@@ -13,6 +13,7 @@ import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.ProviderConfig
 import com.voicetomessenger.data.ProviderKind
 import com.voicetomessenger.data.StyleConfig
+import com.voicetomessenger.data.UsageReport
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -40,9 +41,18 @@ data class AdminUiState(
     val models: Map<String, List<String>> = emptyMap(),
     val loadingModelsFor: String? = null,
     val test: TestState = TestState(),
+    val usage: UsageState = UsageState(),
 ) {
     val hasChanges: Boolean get() = draft != null && draft != saved
 }
+
+/** Вкладка «Расход». Данные тянутся при первом открытии, а не вместе с настройками. */
+data class UsageState(
+    val days: Int = 30,
+    val report: UsageReport? = null,
+    val loading: Boolean = false,
+    val error: String? = null,
+)
 
 data class TestState(
     val input: String = TEST_SAMPLE,
@@ -246,6 +256,35 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 onFailure = { e ->
                     _state.update { it.copy(test = it.test.copy(running = false)) }
                     _messages.tryEmit(e.message ?: "Ошибка прогона")
+                },
+            )
+        }
+    }
+
+    // --- Расход -----------------------------------------------------------
+
+    /**
+     * Тянет сводку расхода. Вызывается при открытии вкладки и при смене периода —
+     * не вместе с настройками: запрос перебирает все строки за период, а панель
+     * чаще открывают ради провайдеров и промпта.
+     */
+    fun loadUsage(days: Int = _state.value.usage.days) {
+        if (_state.value.usage.loading) return
+        _state.update { it.copy(usage = it.usage.copy(days = days, loading = true, error = null)) }
+        viewModelScope.launch {
+            runCatching { container.admin.usage(days) }.fold(
+                onSuccess = { report ->
+                    _state.update { it.copy(usage = it.usage.copy(loading = false, report = report)) }
+                },
+                onFailure = { e ->
+                    _state.update {
+                        it.copy(
+                            usage = it.usage.copy(
+                                loading = false,
+                                error = e.message ?: "Не удалось загрузить расход",
+                            ),
+                        )
+                    }
                 },
             )
         }

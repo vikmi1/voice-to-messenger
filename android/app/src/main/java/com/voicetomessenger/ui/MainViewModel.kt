@@ -34,6 +34,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     val capture: StateFlow<CaptureState> = pipeline.state
 
+    /** Кредиты, потраченные на текущее сообщение: распознавание плюс все генерации. */
+    val spentCredits: StateFlow<Int> = pipeline.spentCredits
+
     val settings: StateFlow<Settings> = container.settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
 

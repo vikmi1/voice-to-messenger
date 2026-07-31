@@ -26,12 +26,18 @@ data class ProcessRequest(
  * локальный — эмитит готовую строку разом.
  */
 interface TextProcessor {
-    fun process(request: ProcessRequest): Flow<String>
+    /**
+     * [onUsageId] сообщает id строки расхода на сервере, если обработка что-то стоила.
+     * Локальная обработка бесплатна и колбэк не вызывает — по этому же признаку
+     * из интерфейса видно, что за режим отработал.
+     */
+    fun process(request: ProcessRequest, onUsageId: (String) -> Unit = {}): Flow<String>
 }
 
 /** Обработка на бэкенде: системный промпт, стили, примеры, эмодзи, список, перевод. */
 class ServerProcessor(private val client: BackendClient) : TextProcessor {
-    override fun process(request: ProcessRequest): Flow<String> = client.processStream(request)
+    override fun process(request: ProcessRequest, onUsageId: (String) -> Unit): Flow<String> =
+        client.processStream(request, onUsageId)
 }
 
 /**
@@ -39,6 +45,6 @@ class ServerProcessor(private val client: BackendClient) : TextProcessor {
  * будущую локальную модель; стиль, перевод, эмодзи и список игнорируются.
  */
 class LocalProcessor : TextProcessor {
-    override fun process(request: ProcessRequest): Flow<String> =
+    override fun process(request: ProcessRequest, onUsageId: (String) -> Unit): Flow<String> =
         flowOf(LocalTextCleaner.clean(request.raw))
 }

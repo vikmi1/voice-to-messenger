@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -127,6 +128,7 @@ fun MainScreen(
     val capture by viewModel.capture.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val options by viewModel.options.collectAsState()
+    val spentCredits by viewModel.spentCredits.collectAsState()
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -198,7 +200,7 @@ fun MainScreen(
                 // Поле правки «прилипает» к низу и едет вверх вместе с клавиатурой (как в мессенджере).
                 when (val state = capture) {
                     is CaptureState.Processing -> ResultComposer(state.text, busy = true, viewModel = viewModel)
-                    is CaptureState.Done -> ResultComposer(state.text, busy = false, viewModel = viewModel)
+                    is CaptureState.Done -> ResultComposer(state.text, busy = false, viewModel = viewModel, spentCredits = spentCredits)
                     else -> Unit
                 }
             },
@@ -894,7 +896,13 @@ private fun RawSection(raw: String) {
  * над клавиатурой и «прилипает» к ней, как поле ввода в мессенджере.
  */
 @Composable
-private fun ResultComposer(text: String, busy: Boolean, viewModel: MainViewModel) {
+private fun ResultComposer(
+    text: String,
+    busy: Boolean,
+    viewModel: MainViewModel,
+    /** Кредиты за это сообщение. 0 — обработка ничего не стоила (локальный режим). */
+    spentCredits: Int = 0,
+) {
     val context = LocalContext.current
     Surface(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -929,6 +937,15 @@ private fun ResultComposer(text: String, busy: Boolean, viewModel: MainViewModel
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Text(stringResource(R.string.result_streaming), style = MaterialTheme.typography.bodySmall)
                 }
+            } else if (spentCredits > 0) {
+                // Только по готовому сообщению: во время генерации сумма ещё догоняет
+                // и прыгала бы на глазах. Ноль не показываем — строки про «ничего не
+                // потрачено» не нужно, она бы только мозолила глаза в локальном режиме.
+                Text(
+                    pluralStringResource(R.plurals.result_spent, spentCredits, spentCredits),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {

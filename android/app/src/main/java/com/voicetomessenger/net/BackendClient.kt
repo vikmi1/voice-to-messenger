@@ -49,8 +49,14 @@ class BackendClient(
         .readTimeout(180, TimeUnit.SECONDS)
         .build()
 
-    /** Текст → готовое сообщение. Эмитит куски ответа по мере их прихода. */
-    fun processStream(request: ProcessRequest): Flow<String> = flow {
+    /**
+     * Текст → готовое сообщение. Эмитит куски ответа по мере их прихода.
+     *
+     * [onUsageId] вызывается, как только пришли заголовки, — то есть до первого куска
+     * текста. По этому id потом спрашивается стоимость запроса ([usageCredits]).
+     * Старый бэкенд заголовка не отдаёт, тогда колбэк просто не вызывается.
+     */
+    fun processStream(request: ProcessRequest, onUsageId: (String) -> Unit = {}): Flow<String> = flow {
         val (base, token) = credentials()
         val payload = JSONObject()
             .put("text", request.raw)
@@ -62,14 +68,15 @@ class BackendClient(
             .toString()
             .toRequestBody(JSON)
 
-        val request = Request.Builder()
+        val httpRequest = Request.Builder()
             .url("$base/api/process")
             .header("Authorization", "Bearer $token")
             .post(payload)
             .build()
 
-        http.newCall(request).execute().use { response ->
+        http.newCall(httpRequest).execute().use { response ->
             ensureSuccessful(response)
+            response.header(USAGE_ID_HEADER)?.takeIf { it.isNotBlank() }?.let(onUsageId)
             // charStream() сам склеивает многобайтовые символы, разорванные между чтениями.
             val reader = response.body?.charStream()
                 ?: throw BackendException(context.localizedString(R.string.err_server_empty_body))
@@ -82,8 +89,11 @@ class BackendClient(
         }
     }.flowOn(Dispatchers.IO)
 
+    /** Что вернуло серверное распознавание: текст и id строки расхода (её ещё нет у старого бэкенда). */
+    data class Transcription(val text: String, val usageId: String?)
+
     /** Аудиофайл → сырой текст (серверный Whisper). */
-    suspend fun transcribe(file: File, mimeType: String = "audio/mp4"): String =
+    suspend fun transcribe(file: File, mimeType: String = "audio/mp4"): Transcription =
         withContext(Dispatchers.IO) {
             val (base, token) = credentials()
             val body = MultipartBody.Builder()
@@ -99,10 +109,35 @@ class BackendClient(
 
             http.newCall(request).execute().use { response ->
                 ensureSuccessful(response)
-                val raw = response.body?.string().orEmpty()
-                JSONObject(raw).optString("text").trim()
+                val json = JSONObject(response.body?.string().orEmpty())
+                Transcription(
+                    text = json.optString("text").trim(),
+                    usageId = json.optString("usage_id").takeIf { it.isNotBlank() },
+                )
             }
         }
+
+    /**
+     * Сколько кредитов стоил запрос с таким id. null — если сервер не ответил.
+     *
+     * Ошибки глотаем намеренно: строка «потрачено N кредитов» — справочная, и ронять
+     * из-за неё показ готового сообщения (или сыпать снекбарами) нельзя.
+     */
+    suspend fun usageCredits(usageId: String): Int? = withContext(Dispatchers.IO) {
+        runCatching {
+            val (base, token) = credentials()
+            val request = Request.Builder()
+                .url("$base/api/usage/$usageId")
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+            http.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@runCatching null
+                val json = JSONObject(response.body?.string().orEmpty())
+                if (json.isNull("credits")) null else json.optInt("credits")
+            }
+        }.getOrNull()
+    }
 
     /** Актуальные стили и языки из админ-панели. */
     suspend fun options(): Options = withContext(Dispatchers.IO) {
@@ -145,6 +180,9 @@ class BackendClient(
 
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
+
+        /** Id строки расхода: приходит в заголовке, потому что тело /api/process — поток текста. */
+        const val USAGE_ID_HEADER = "X-Usage-Id"
 
         fun parseOptions(root: JSONObject): Options {
             fun <T> JSONArray.mapItems(transform: (JSONObject) -> T): List<T> =

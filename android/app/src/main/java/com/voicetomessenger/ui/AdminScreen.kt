@@ -63,7 +63,7 @@ import com.voicetomessenger.data.ProviderKind
 import com.voicetomessenger.data.StyleConfig
 
 private val TABS = listOf(
-    "Провайдеры", "Распознавание", "Промпт", "Стили", "Языки", "Тест", "Доступ",
+    "Провайдеры", "Распознавание", "Промпт", "Стили", "Языки", "Тест", "Расход", "Доступ",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,6 +130,7 @@ fun AdminScreen(viewModel: AdminViewModel, onBack: () -> Unit) {
                             3 -> StylesTab(draft, viewModel)
                             4 -> LanguagesTab(draft, viewModel)
                             5 -> TestTab(state, draft, viewModel)
+                            6 -> UsageTab(state, viewModel)
                             else -> AccessTab(draft, viewModel, onBack)
                         }
                     }
@@ -672,10 +673,15 @@ private fun Centered(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
 }
 
-/** Чипы выбора: провайдеров и стилей может быть много, поэтому переносим по строкам. */
+/**
+ * Чипы выбора: провайдеров и стилей может быть много, поэтому переносим по строкам.
+ *
+ * internal, а не private: тем же чипам выбирается период на вкладке «Расход»
+ * (она живёт в отдельном файле, чтобы этот не разрастался).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun <T> ChipRow(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+internal fun <T> ChipRow(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

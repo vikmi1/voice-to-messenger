@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -91,6 +92,36 @@ class VoicePipeline(
      */
     private val results = mutableMapOf<ResultKey, String>()
     private var currentKey: ResultKey? = null
+
+    /**
+     * Кредиты, потраченные на текущее сообщение: распознавание плюс каждая генерация.
+     *
+     * Именно сумма за сессию, а не за последний прогон: перебор стилей стоит денег,
+     * и честнее показывать, во что обошлось сообщение целиком. Обнуляется новой записью.
+     * Ноль означает «ничего не потрачено» — локальная обработка или старый бэкенд.
+     */
+    private val _spentCredits = MutableStateFlow(0)
+    val spentCredits: StateFlow<Int> = _spentCredits.asStateFlow()
+
+    /** Уже посчитанные id: один и тот же запрос не должен прибавиться дважды. */
+    private val countedUsage = mutableSetOf<String>()
+
+    /**
+     * Спрашивает стоимость запроса и прибавляет её к счётчику. Молча, в фоне.
+     *
+     * Всё, что трогает [countedUsage] и счётчик, делается на главном потоке: вызывают
+     * отсюда и с главного (после распознавания), и с IO (из колбэка стрима), а обычный
+     * set и `value +=` не атомарны — одновременное прибавление потеряло бы одно из двух.
+     */
+    private fun countUsage(usageId: String?) {
+        if (usageId == null) return
+        scope.launch(Dispatchers.Main.immediate) {
+            if (!countedUsage.add(usageId)) return@launch
+            backend.usageCredits(usageId)?.let { credits ->
+                _spentCredits.update { it + credits }
+            }
+        }
+    }
 
     private data class ResultKey(
         val raw: String,
@@ -208,6 +239,10 @@ class VoicePipeline(
     private fun forgetResults() {
         results.clear()
         currentKey = null
+        // Счётчик кредитов живёт ровно столько же, сколько кэш результатов: и то и другое
+        // относится к одному сообщению. Вызывается и из start(), и из reset().
+        _spentCredits.value = 0
+        countedUsage.clear()
     }
 
     fun release() {
@@ -254,7 +289,7 @@ class VoicePipeline(
             _state.value = CaptureState.Failed(context.localizedString(R.string.err_record_empty))
             return
         }
-        val raw = try {
+        val transcription = try {
             backend.transcribe(file)
         } catch (e: CancellationException) {
             throw e
@@ -266,7 +301,9 @@ class VoicePipeline(
             // Аудио не храним — удаляем сразу после отправки, даже если запрос отменили.
             withContext(NonCancellable + Dispatchers.IO) { file.delete() }
         }
+        countUsage(transcription.usageId)
 
+        val raw = transcription.text
         if (raw.isBlank()) {
             _state.value = CaptureState.Failed(context.localizedString(R.string.err_nothing_recognized))
             return
@@ -294,7 +331,9 @@ class VoicePipeline(
         _state.value = CaptureState.Processing(raw, "")
         val builder = StringBuilder()
         try {
-            processor.process(request).collect { chunk ->
+            // Считаем расход сразу по заголовку, не дожидаясь конца потока: если генерацию
+            // прервут на середине, токены всё равно потрачены и должны попасть в счётчик.
+            processor.process(request, ::countUsage).collect { chunk ->
                 builder.append(chunk)
                 _state.value = CaptureState.Processing(raw, builder.toString())
             }

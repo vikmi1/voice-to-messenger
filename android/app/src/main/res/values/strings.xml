@@ -67,6 +67,13 @@
 
     <string name="result_label">Готовое сообщение</string>
     <string name="result_streaming">Текст ещё дописывается…</string>
+    <!-- Сумма за всё сообщение: распознавание плюс каждая генерация, включая смену стиля. -->
+    <plurals name="result_spent">
+        <item quantity="one">Потрачен %d кредит</item>
+        <item quantity="few">Потрачено %d кредита</item>
+        <item quantity="many">Потрачено %d кредитов</item>
+        <item quantity="other">Потрачено %d кредита</item>
+    </plurals>
     <string name="error_retry">Попробовать снова</string>
 
     <!-- Настройки -->

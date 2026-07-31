@@ -59,7 +59,9 @@
     <div class="card">
       <label>Активный провайдер</label>
       <select id="active_provider"></select>
-      <p class="muted">Модель для генерации текста берётся из настроек выбранного провайдера.</p>
+      <p class="muted">Кто переписывает надиктованный текст. Модель берётся из карточки этого
+        провайдера ниже — там же задаётся и модель распознавания речи для вкладки
+        «Распознавание».</p>
     </div>
     <div id="providers_list"></div>
     <button class="btn secondary" onclick="addProvider()">+ Добавить провайдера</button>
@@ -73,8 +75,9 @@
         поэтому в списке только OpenAI-совместимые провайдеры.</p>
       <label>Провайдер для ASR (чей ключ/base_url использовать)</label>
       <select id="asr_provider"></select>
-      <label>Модель распознавания</label>
-      <input id="asr_model" placeholder="whisper-1">
+      <p class="muted" style="margin-top:10px;">Модель распознавания задаётся в карточке
+        самого провайдера на вкладке «Провайдеры»: у каждого она своя (<code>whisper-1</code>
+        у Mistral не существует, <code>voxtral</code> у OpenAI — тоже).</p>
     </div>
   </div>
 
@@ -139,6 +142,10 @@
 
 <script>
 let CFG = null;
+/** Подобранные модели с ценами — приходят с сервера, чтобы не хардкодить их в панелях. */
+let CATALOG = { catalog: [], tiers: {} };
+/** Живые списки моделей по ключу провайдера — то, что подтянула кнопка «Список». */
+const LIVE_MODELS = {};
 
 function esc(s) { return (s || "").replace(/"/g, "&quot;"); }
 
@@ -154,6 +161,8 @@ document.querySelectorAll(".tabs button").forEach(b => {
 async function load() {
   const r = await fetch("/admin/api/config");
   CFG = await r.json();
+  // Каталог не критичен: без него поля моделей просто останутся без подсказок.
+  CATALOG = await fetch("/admin/api/catalog").then(x => x.json()).catch(() => CATALOG);
   render();
 }
 
@@ -165,9 +174,6 @@ function render() {
     list.appendChild(providerCard(key, p));
   }
   refreshProviderSelects();
-
-  // ASR
-  document.getElementById("asr_model").value = CFG.asr?.model || "";
 
   // Промпт
   document.getElementById("base_prompt").value = CFG.base_prompt || "";
@@ -230,22 +236,87 @@ function providerCard(key, p) {
         </select>
       </div>
     </div>
-    <label>Модель</label>
+    <label>Модель для обработки текста</label>
     <div class="prov-head">
-      <input class="p-model" list="models-${esc(key)}" value="${esc(p.model)}" style="flex:1;">
+      <input class="p-model" list="models-${esc(key)}" value="${esc(p.model)}" style="flex:1;"
+             oninput="refreshHints(this.closest('.card'))">
       <button class="btn secondary small" onclick="loadModels('${esc(key)}', this)">Список</button>
     </div>
-    <datalist id="models-${esc(key)}"></datalist>
-    <label>Base URL</label><input class="p-base" value="${esc(p.base_url)}">
+    <datalist id="models-${esc(key)}" data-role="llm"></datalist>
+    <p class="muted p-model-hint"></p>
+
+    <div class="p-asr" ${kind === "anthropic" ? 'style="display:none;"' : ""}>
+      <label>Модель распознавания речи</label>
+      <input class="p-asr-model" list="asr-${esc(key)}" value="${esc(p.asr_model)}"
+             oninput="refreshHints(this.closest('.card'))">
+      <datalist id="asr-${esc(key)}" data-role="asr"></datalist>
+      <p class="muted p-asr-hint"></p>
+    </div>
+
+    <label>Base URL</label>
+    <input class="p-base" value="${esc(p.base_url)}" oninput="fillModelLists(this.closest('.card'))">
     <label>API-ключ</label><input class="p-key" type="password" value="${esc(p.api_key)}" placeholder="sk-...">
   `;
+  fillModelLists(d);
   return d;
+}
+
+/** Подобранные модели для этого адреса API. Незнакомый провайдер — пустые списки. */
+function catalogFor(baseUrl) {
+  const url = (baseUrl || "").toLowerCase();
+  return CATALOG.catalog.find(e => url.includes(e.match)) || { llm: [], asr: [] };
+}
+
+function tierName(tier) { return CATALOG.tiers[tier] || tier; }
+
+/** Наполняет обе выпадашки карточки: подобранные модели + подтянутые кнопкой «Список». */
+function fillModelLists(card) {
+  const cat = catalogFor(card.querySelector(".p-base").value);
+  fillList(card.querySelector('datalist[data-role="llm"]'), cat.llm, LIVE_MODELS[card.dataset.key]);
+  fillList(card.querySelector('datalist[data-role="asr"]'), cat.asr, null);
+  refreshHints(card);
+}
+
+function fillList(dl, entries, live) {
+  if (!dl) return;
+  const known = new Set(entries.map(m => m.id));
+  dl.innerHTML =
+    entries.map(m => `<option value="${esc(m.id)}" label="${esc(tierName(m.tier))} · ${esc(m.price)}">`).join("") +
+    (live || []).filter(m => !known.has(m)).map(m => `<option value="${esc(m)}">`).join("");
+}
+
+/** Показывает цену выбранной модели прямо под полем — видно, что дороже, что дешевле. */
+function refreshHints(card) {
+  const cat = catalogFor(card.querySelector(".p-base").value);
+  hint(card, ".p-model", ".p-model-hint", cat.llm);
+  hint(card, ".p-asr-model", ".p-asr-hint", cat.asr);
+}
+
+function hint(card, inputSel, hintSel, entries) {
+  const box = card.querySelector(hintSel);
+  const input = card.querySelector(inputSel);
+  if (!box || !input) return;
+  const value = input.value.trim();
+  const found = entries.find(m => m.id === value);
+  if (found) {
+    box.textContent = `${tierName(found.tier)} · ${found.price} — ${found.note}`;
+  } else if (value) {
+    box.textContent = "Модель вписана вручную — цену смотри у провайдера";
+  } else {
+    box.textContent = entries.length
+      ? `Пусто. Подобранные варианты — в выпадающем списке (жми поле)`
+      : "";
+  }
 }
 
 /** Смена типа API сразу пересобирает список ASR: Anthropic оттуда должен пропасть. */
 function onKindChange(key, kind) {
   if (!CFG.providers[key]) return;
   CFG.providers[key].kind = kind;
+  // У Anthropic нет транскрипции — прячем поле модели распознавания.
+  const card = [...document.querySelectorAll("#providers_list .card")].find(c => c.dataset.key === key);
+  if (card) card.querySelector(".p-asr").style.display = kind === "anthropic" ? "none" : "";
+
   const asr = document.getElementById("asr_provider");
   const before = asr.value;
   CFG.asr = CFG.asr || {};
@@ -263,8 +334,10 @@ async function loadModels(key, btn) {
     const r = await fetch("/admin/api/models?provider=" + encodeURIComponent(key));
     const data = await r.json();
     if (!r.ok) { toast(data.error || "Не удалось получить список"); return; }
-    const dl = document.getElementById("models-" + key);
-    dl.innerHTML = data.models.map(m => `<option value="${esc(m)}">`).join("");
+    // Подобранные модели остаются наверху списка, живые добавляются под ними.
+    LIVE_MODELS[key] = data.models;
+    const card = [...document.querySelectorAll("#providers_list .card")].find(c => c.dataset.key === key);
+    if (card) fillModelLists(card);
     toast(`Моделей: ${data.models.length} — жми поле «Модель»`);
   } catch (e) {
     toast("Ошибка сети");
@@ -307,7 +380,7 @@ function languageCard(l, i) {
 function addProvider() {
   const key = prompt("Ключ нового провайдера (латиницей, напр. bedrock):");
   if (!key) return;
-  CFG.providers[key] = { label: key, kind: "openai", base_url: "", api_key: "", model: "" };
+  CFG.providers[key] = { label: key, kind: "openai", base_url: "", api_key: "", model: "", asr_model: "" };
   render();
 }
 function addStyle() { CFG.styles.push({ id: "", name: "", prompt: "" }); render(); }
@@ -349,6 +422,7 @@ function collect() {
       label: c.querySelector(".p-label").value.trim(),
       kind: c.querySelector(".p-kind").value,
       model: c.querySelector(".p-model").value.trim(),
+      asr_model: c.querySelector(".p-asr-model").value.trim(),
       base_url: c.querySelector(".p-base").value.trim(),
       api_key: c.querySelector(".p-key").value,
     };
@@ -368,10 +442,8 @@ function collect() {
     api_token: document.getElementById("api_token").value.trim(),
     admin_token: document.getElementById("admin_token").value.trim(),
     providers,
-    asr: {
-      provider: document.getElementById("asr_provider").value,
-      model: document.getElementById("asr_model").value.trim() || "whisper-1",
-    },
+    // Модель распознавания лежит в карточке провайдера, здесь — только кто распознаёт.
+    asr: { provider: document.getElementById("asr_provider").value },
     base_prompt: document.getElementById("base_prompt").value,
     styles,
     languages,

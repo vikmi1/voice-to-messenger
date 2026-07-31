@@ -11,6 +11,7 @@ import secrets
 import sqlite3
 import threading
 
+import catalog
 from prompts import DEFAULT_BASE_PROMPT
 
 _DB_PATH = os.environ.get(
@@ -27,6 +28,9 @@ def _default_config() -> dict:
         # Токен админ-панели в приложении (заголовок X-Admin-Token). Отдельный от
         # api_token: обычный токен даёт только обработку текста, этот — правку настроек.
         "admin_token": secrets.token_urlsafe(24),
+        # asr_model — модель распознавания речи этого же провайдера. Лежит рядом с
+        # моделью генерации, потому что у каждого провайдера она своя: whisper-1
+        # у Mistral не существует, voxtral у OpenAI — тоже.
         "providers": {
             "openai": {
                 "label": "OpenAI",
@@ -34,6 +38,7 @@ def _default_config() -> dict:
                 "base_url": "https://api.openai.com/v1",
                 "api_key": "",
                 "model": "gpt-4o-mini",
+                "asr_model": catalog.default_asr_model("https://api.openai.com/v1"),
             },
             "mistral": {
                 "label": "Mistral",
@@ -41,6 +46,7 @@ def _default_config() -> dict:
                 "base_url": "https://api.mistral.ai/v1",
                 "api_key": "",
                 "model": "mistral-small-latest",
+                "asr_model": catalog.default_asr_model("https://api.mistral.ai/v1"),
             },
             "anthropic": {
                 "label": "Anthropic (Claude)",
@@ -48,13 +54,11 @@ def _default_config() -> dict:
                 "base_url": "https://api.anthropic.com/v1",
                 "api_key": "",
                 "model": "claude-sonnet-5",
+                "asr_model": "",
             },
         },
-        # Настройки распознавания речи на сервере (Whisper-совместимый эндпоинт)
-        "asr": {
-            "provider": "openai",   # чей ключ/base_url использовать
-            "model": "whisper-1",
-        },
+        # Кто распознаёт речь на сервере. Модель — в карточке этого провайдера.
+        "asr": {"provider": "openai"},
         "base_prompt": DEFAULT_BASE_PROMPT,
         "styles": [
             # «Мой стиль» — пустой prompt: тон задаётся few-shot-примерами сообщений
@@ -95,6 +99,26 @@ def _migrate(cfg: dict) -> bool:
 
     if "anthropic" not in providers:
         providers["anthropic"] = _default_config()["providers"]["anthropic"]
+        changed = True
+
+    # Модель распознавания переехала из общего asr.model в карточку провайдера.
+    # Раньше она была одна на всех: переключение ASR-провайдера оставляло чужую
+    # модель и запрос падал. Старое значение отдаём тому провайдеру, который его и
+    # использовал; остальным ставим рекомендуемую по их base_url.
+    asr = cfg.setdefault("asr", {})
+    if "model" in asr:
+        legacy = (asr.pop("model") or "").strip()
+        owner = providers.get(asr.get("provider") or "")
+        if legacy and owner is not None and not owner.get("asr_model"):
+            owner["asr_model"] = legacy
+        changed = True
+
+    for prov in providers.values():
+        if "asr_model" in prov:
+            continue
+        prov["asr_model"] = (
+            "" if prov.get("kind") == "anthropic" else catalog.default_asr_model(prov.get("base_url"))
+        )
         changed = True
 
     # Переход на три стиля с «Моим стилем». Признак старого набора — отсутствие id "mine".

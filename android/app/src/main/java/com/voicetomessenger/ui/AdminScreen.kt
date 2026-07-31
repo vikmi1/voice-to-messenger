@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +55,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.voicetomessenger.data.AdminConfig
+import com.voicetomessenger.data.CatalogModel
 import com.voicetomessenger.data.LanguageConfig
+import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.ProviderConfig
 import com.voicetomessenger.data.ProviderKind
 import com.voicetomessenger.data.StyleConfig
@@ -149,7 +152,8 @@ private fun ProvidersTab(state: AdminUiState, draft: AdminConfig, viewModel: Adm
         onSelect = viewModel::setActiveProvider,
     )
     Text(
-        "Модель берётся из настроек выбранного провайдера ниже.",
+        "Кто переписывает надиктованный текст. Модель берётся из карточки этого провайдера " +
+            "ниже — там же задаётся и модель распознавания речи.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -157,9 +161,11 @@ private fun ProvidersTab(state: AdminUiState, draft: AdminConfig, viewModel: Adm
     draft.providers.forEach { provider ->
         ProviderCard(
             provider = provider,
+            catalog = state.catalog,
             models = state.models[provider.key].orEmpty(),
             loadingModels = state.loadingModelsFor == provider.key,
             canDelete = provider.key != draft.activeProvider && provider.key != draft.asrProvider,
+            isAsrProvider = provider.key == draft.asrProvider,
             onChange = viewModel::updateProvider,
             onLoadModels = { viewModel.loadModels(provider.key) },
             onDelete = { viewModel.removeProvider(provider.key) },
@@ -201,9 +207,11 @@ private fun ProvidersTab(state: AdminUiState, draft: AdminConfig, viewModel: Adm
 @Composable
 private fun ProviderCard(
     provider: ProviderConfig,
+    catalog: ModelCatalog,
     models: List<String>,
     loadingModels: Boolean,
     canDelete: Boolean,
+    isAsrProvider: Boolean,
     onChange: (ProviderConfig) -> Unit,
     onLoadModels: () -> Unit,
     onDelete: () -> Unit,
@@ -239,18 +247,43 @@ private fun ProviderCard(
             )
 
             ModelField(
+                label = "Модель для обработки текста",
                 model = provider.model,
+                suggestions = catalog.llmFor(provider.baseUrl),
+                tierTitle = catalog::tierTitle,
                 models = models,
                 loading = loadingModels,
                 onChange = { onChange(provider.copy(model = it)) },
                 onLoadModels = onLoadModels,
             )
 
+            // У Anthropic нет /audio/transcriptions — распознавать речь ему нечем.
+            if (provider.kind == ProviderKind.OPENAI) {
+                ModelField(
+                    label = "Модель распознавания речи",
+                    model = provider.asrModel,
+                    suggestions = catalog.asrFor(provider.baseUrl),
+                    tierTitle = catalog::tierTitle,
+                    // Живой список моделей провайдера сюда не годится: /models отдаёт
+                    // всё вперемешку, а транскрипцию умеют единицы.
+                    models = emptyList(),
+                    loading = false,
+                    onChange = { onChange(provider.copy(asrModel = it)) },
+                    onLoadModels = null,
+                    footnote = if (isAsrProvider) {
+                        "Этот провайдер сейчас распознаёт речь — см. вкладку «Распознавание»."
+                    } else {
+                        null
+                    },
+                )
+            }
+
             OutlinedTextField(
                 value = provider.baseUrl,
                 onValueChange = { onChange(provider.copy(baseUrl = it)) },
                 label = { Text("Base URL") },
                 singleLine = true,
+                supportingText = { Text("По нему подбирается список моделей в выпадашках") },
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -265,14 +298,24 @@ private fun ProviderCard(
     }
 }
 
-/** Поле модели: ручной ввод плюс живой список из API провайдера. */
+/**
+ * Поле модели: выпадашка подобранных моделей с ценами — плюс ручной ввод.
+ *
+ * [suggestions] — короткий подобранный список с бэкенда (каталог). [models] — живой
+ * список всех моделей провайдера, подтягивается по кнопке; для распознавания речи он
+ * бесполезен, поэтому [onLoadModels] там null и кнопки нет.
+ */
 @Composable
 private fun ModelField(
+    label: String,
     model: String,
+    suggestions: List<CatalogModel>,
+    tierTitle: (String) -> String,
     models: List<String>,
     loading: Boolean,
     onChange: (String) -> Unit,
-    onLoadModels: () -> Unit,
+    onLoadModels: (() -> Unit)?,
+    footnote: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var awaitingList by remember { mutableStateOf(false) }
@@ -285,54 +328,96 @@ private fun ModelField(
         }
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedTextField(
-            value = model,
-            onValueChange = onChange,
-            label = { Text("Модель") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        Box {
-            OutlinedButton(
-                onClick = {
-                    if (models.isEmpty()) {
-                        awaitingList = true
-                        onLoadModels()
-                    } else {
-                        expanded = true
-                    }
-                },
-                enabled = !loading,
-            ) { Text(if (loading) "…" else "Список") }
+    val chosen = suggestions.firstOrNull { it.id == model.trim() }
+    val hint = when {
+        chosen != null -> "${tierTitle(chosen.tier)} · ${chosen.price} — ${chosen.note}"
+        model.isNotBlank() -> "Своя модель — цену смотри у провайдера"
+        suggestions.isNotEmpty() -> "Пусто. Подобранные варианты — по кнопке справа"
+        else -> "Впиши модель вручную: для этого адреса API подсказок нет"
+    }
 
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.heightIn(max = 360.dp),
-            ) {
-                models.forEach { id ->
-                    DropdownMenuItem(
-                        text = { Text(id) },
-                        onClick = {
-                            onChange(id)
-                            expanded = false
-                        },
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text("Обновить список") },
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = model,
+                onValueChange = onChange,
+                label = { Text(label) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Box {
+                OutlinedButton(
                     onClick = {
-                        expanded = false
-                        onLoadModels()
+                        // Подсказок нет и живого списка тоже — сначала тянем его с провайдера.
+                        if (suggestions.isEmpty() && models.isEmpty() && onLoadModels != null) {
+                            awaitingList = true
+                            onLoadModels()
+                        } else {
+                            expanded = true
+                        }
                     },
-                )
+                    enabled = !loading && (suggestions.isNotEmpty() || onLoadModels != null),
+                ) { Text(if (loading) "…" else "Список") }
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.heightIn(max = 400.dp),
+                ) {
+                    suggestions.forEach { entry ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(entry.id, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "${tierTitle(entry.tier)} · ${entry.price}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onChange(entry.id)
+                                expanded = false
+                            },
+                        )
+                    }
+
+                    if (onLoadModels != null) {
+                        HorizontalDivider()
+                        val known = suggestions.map { it.id }.toSet()
+                        models.filterNot { it in known }.forEach { id ->
+                            DropdownMenuItem(
+                                text = { Text(id, style = MaterialTheme.typography.bodyMedium) },
+                                onClick = {
+                                    onChange(id)
+                                    expanded = false
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = {
+                                Text(if (models.isEmpty()) "Все модели провайдера" else "Обновить список")
+                            },
+                            onClick = {
+                                expanded = false
+                                onLoadModels()
+                            },
+                        )
+                    }
+                }
             }
         }
+
+        Text(
+            text = listOfNotNull(hint, footnote).joinToString("\n"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -353,14 +438,23 @@ private fun AsrTab(draft: AdminConfig, viewModel: AdminViewModel) {
         selected = draft.asrProvider,
         onSelect = viewModel::setAsrProvider,
     )
-    OutlinedTextField(
-        value = draft.asrModel,
-        onValueChange = viewModel::setAsrModel,
-        label = { Text("Модель распознавания") },
-        placeholder = { Text("whisper-1") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
+
+    val chosen = draft.provider(draft.asrProvider)
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Модель распознавания", style = MaterialTheme.typography.labelLarge)
+            Text(
+                chosen?.asrModel?.ifBlank { null } ?: "не задана",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                "Задаётся в карточке провайдера на вкладке «Провайдеры»: у каждого она " +
+                    "своя. whisper-1 у Mistral не существует, voxtral у OpenAI — тоже.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable
@@ -485,12 +579,16 @@ private fun TestTab(state: AdminUiState, draft: AdminConfig, viewModel: AdminVie
         onSelect = { key -> viewModel.editTest { it.copy(providerKey = key) } },
     )
 
+    val testProviderKey = test.providerKey.ifBlank { draft.activeProvider }
     ModelField(
+        label = "Модель (пусто — из настроек)",
         model = test.model,
-        models = state.models[test.providerKey.ifBlank { draft.activeProvider }].orEmpty(),
+        suggestions = state.catalog.llmFor(draft.provider(testProviderKey)?.baseUrl.orEmpty()),
+        tierTitle = state.catalog::tierTitle,
+        models = state.models[testProviderKey].orEmpty(),
         loading = state.loadingModelsFor != null,
         onChange = { value -> viewModel.editTest { it.copy(model = value) } },
-        onLoadModels = { viewModel.loadModels(test.providerKey.ifBlank { draft.activeProvider }) },
+        onLoadModels = { viewModel.loadModels(testProviderKey) },
     )
 
     Text("Стиль", style = MaterialTheme.typography.labelLarge)

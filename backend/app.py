@@ -9,6 +9,7 @@
   GET  /admin/api/config  — текущая конфигурация (админ-доступ)
   POST /admin/api/config  — сохранить конфигурацию (админ-доступ)
   GET  /admin/api/models  — список моделей провайдера (админ-доступ)
+  GET  /admin/api/catalog — подобранные модели с ценами для выпадашек (админ-доступ)
   POST /admin/api/test    — прогнать текст через текущие настройки (админ-доступ)
 
 Админ-доступ — это Basic Auth (веб) ИЛИ заголовок X-Admin-Token (приложение).
@@ -21,6 +22,7 @@ import secrets
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
 
+import catalog
 import config_store
 from prompts import build_system
 from providers import anthropic as anthropic_provider
@@ -190,15 +192,22 @@ def api_transcribe():
                   "Выбери OpenAI-совместимого провайдера на вкладке «Распознавание».",
         ), 400
 
+    # Модель распознавания живёт в карточке провайдера: у каждого она своя.
+    model = (prov.get("asr_model") or "").strip() or catalog.default_asr_model(prov.get("base_url"))
+    if not model:
+        return jsonify(
+            error=f"У провайдера «{asr_name}» не задана модель распознавания. "
+                  "Впиши её в карточке провайдера на вкладке «Провайдеры».",
+        ), 400
+
     file_bytes = audio.read()
     app.logger.info(
         "transcribe: provider=%s model=%s filename=%s mime=%s size=%d",
-        asr_name, asr.get("model", "whisper-1"),
-        audio.filename, audio.mimetype, len(file_bytes),
+        asr_name, model, audio.filename, audio.mimetype, len(file_bytes),
     )
     try:
         text = transcribe_audio(
-            prov["base_url"], resolve_api_key(asr_name, prov), asr.get("model", "whisper-1"),
+            prov["base_url"], resolve_api_key(asr_name, prov), model,
             file_bytes, filename=audio.filename or "audio.m4a",
             content_type=audio.mimetype or "audio/m4a",
         )
@@ -253,6 +262,16 @@ def admin_list_models():
     except Exception as exc:  # noqa: BLE001 — показываем причину прямо в панели
         return jsonify(error=str(exc)), 502
     return jsonify(provider=name, models=sorted(models))
+
+
+@app.get("/admin/api/catalog")
+@require_admin_api
+def admin_catalog():
+    """Подобранные модели с ценами — для выпадашек в обеих панелях.
+
+    Отдаём с сервера, чтобы обновление цен не требовало пересборки приложения.
+    """
+    return jsonify(catalog=catalog.CATALOG, tiers=catalog.TIER_TITLES)
 
 
 @app.post("/admin/api/test")

@@ -1,6 +1,7 @@
 package com.voicetomessenger.net
 
 import com.voicetomessenger.data.AdminConfig
+import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.SettingsRepository
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,11 @@ class AdminClient(private val settings: SettingsRepository) {
             .post(config.toJson().toRequestBody(JSON))
             .build()
         http.newCall(request).execute().use(::ensureAdminSuccessful)
+    }
+
+    /** Подобранные модели с ценами для выпадашек. Старый бэкенд отдаст 404 — см. вызывающего. */
+    suspend fun catalog(): ModelCatalog = withContext(Dispatchers.IO) {
+        ModelCatalog.parse(get("/admin/api/catalog"))
     }
 
     /** Живой список моделей провайдера — тянется бэкендом у самого провайдера. */

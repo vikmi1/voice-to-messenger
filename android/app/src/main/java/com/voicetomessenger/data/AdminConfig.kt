@@ -21,7 +21,16 @@ data class ProviderConfig(
     val kind: ProviderKind,
     val baseUrl: String,
     val apiKey: String,
+    /** Модель для обработки текста (chat/completions). */
     val model: String,
+    /**
+     * Модель распознавания речи этого провайдера (`/audio/transcriptions`).
+     *
+     * Лежит здесь, а не одним полем на всю систему: у каждого провайдера она своя —
+     * `whisper-1` у Mistral не существует, `voxtral` у OpenAI тоже. У Anthropic
+     * распознавания нет вовсе, поэтому поле пустое и в панели не показывается.
+     */
+    val asrModel: String,
 )
 
 data class StyleConfig(val id: String, val name: String, val prompt: String)
@@ -38,7 +47,6 @@ data class AdminConfig(
     val activeProvider: String,
     val providers: List<ProviderConfig>,
     val asrProvider: String,
-    val asrModel: String,
     val basePrompt: String,
     val styles: List<StyleConfig>,
     val languages: List<LanguageConfig>,
@@ -63,6 +71,7 @@ data class AdminConfig(
             existing.put("base_url", p.baseUrl)
             existing.put("api_key", p.apiKey)
             existing.put("model", p.model)
+            existing.put("asr_model", p.asrModel)
             provs.put(p.key, existing)
         }
 
@@ -78,7 +87,8 @@ data class AdminConfig(
         return root
             .put("active_provider", activeProvider)
             .put("providers", provs)
-            .put("asr", JSONObject().put("provider", asrProvider).put("model", asrModel))
+            // Модель распознавания ушла в карточку провайдера — здесь только кто распознаёт.
+            .put("asr", JSONObject().put("provider", asrProvider))
             .put("base_prompt", basePrompt)
             .put("styles", stylesArr)
             .put("languages", langsArr)
@@ -101,6 +111,7 @@ data class AdminConfig(
                     baseUrl = p.optString("base_url"),
                     apiKey = p.optString("api_key"),
                     model = p.optString("model"),
+                    asrModel = p.optString("asr_model"),
                 )
             }.sortedBy { it.key }.toList()
 
@@ -110,7 +121,6 @@ data class AdminConfig(
                 activeProvider = root.optString("active_provider"),
                 providers = providers,
                 asrProvider = asr.optString("provider"),
-                asrModel = asr.optString("model", "whisper-1"),
                 basePrompt = root.optString("base_prompt"),
                 styles = root.optJSONArray("styles").mapObjects {
                     StyleConfig(it.optString("id"), it.optString("name"), it.optString("prompt"))

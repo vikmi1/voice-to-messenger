@@ -13,11 +13,12 @@ private const val SERVER_JSON = """
   "admin_token": "admin-token",
   "providers": {
     "mistral": {"label": "Mistral", "kind": "openai", "base_url": "https://api.mistral.ai/v1",
-                "api_key": "mk", "model": "mistral-small-latest"},
+                "api_key": "mk", "model": "mistral-small-latest", "asr_model": "voxtral-mini-latest"},
     "anthropic": {"label": "Anthropic (Claude)", "kind": "anthropic",
-                  "base_url": "https://api.anthropic.com/v1", "api_key": "ak", "model": "claude-sonnet-5"}
+                  "base_url": "https://api.anthropic.com/v1", "api_key": "ak", "model": "claude-sonnet-5",
+                  "asr_model": ""}
   },
-  "asr": {"provider": "openai", "model": "whisper-1"},
+  "asr": {"provider": "mistral"},
   "base_prompt": "Ты — редактор коротких сообщений.",
   "styles": [{"id": "neutral", "name": "Нейтрально", "prompt": "спокойный тон."}],
   "languages": [{"code": "off", "name": "Без перевода"}, {"code": "de", "name": "Немецкий"}],
@@ -36,7 +37,9 @@ class AdminConfigTest {
         assertEquals(ProviderKind.ANTHROPIC, cfg.provider("anthropic")!!.kind)
         assertEquals(ProviderKind.OPENAI, cfg.provider("mistral")!!.kind)
         assertEquals("claude-sonnet-5", cfg.provider("anthropic")!!.model)
-        assertEquals("whisper-1", cfg.asrModel)
+        // Модель распознавания у каждого провайдера своя, а не одна на весь конфиг.
+        assertEquals("voxtral-mini-latest", cfg.provider("mistral")!!.asrModel)
+        assertEquals("mistral", cfg.asrProvider)
         assertEquals("admin-token", cfg.adminToken)
         assertEquals(1, cfg.styles.size)
         assertEquals(2, cfg.languages.size)
@@ -67,7 +70,10 @@ class AdminConfigTest {
         assertEquals("mk", out.getJSONObject("providers").getJSONObject("mistral").getString("api_key"))
         assertEquals("Ты — редактор коротких сообщений.", out.getString("base_prompt"))
         assertEquals("app-token", out.getString("api_token"))
-        assertEquals("whisper-1", out.getJSONObject("asr").getString("model"))
+        assertEquals(
+            "voxtral-mini-latest",
+            out.getJSONObject("providers").getJSONObject("mistral").getString("asr_model"),
+        )
         assertEquals("neutral", out.getJSONArray("styles").getJSONObject(0).getString("id"))
         assertEquals("спокойный тон.", out.getJSONArray("styles").getJSONObject(0).getString("prompt"))
     }
@@ -97,6 +103,7 @@ class AdminConfigTest {
             providers = AdminConfig.parse(SERVER_JSON).providers + ProviderConfig(
                 key = "groq", label = "Groq", kind = ProviderKind.OPENAI,
                 baseUrl = "https://api.groq.com/openai/v1", apiKey = "gk", model = "llama-3.3-70b",
+                asrModel = "",
             ),
         )
 

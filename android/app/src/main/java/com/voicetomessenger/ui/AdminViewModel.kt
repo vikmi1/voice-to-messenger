@@ -9,6 +9,7 @@ import com.voicetomessenger.AppContainer
 import com.voicetomessenger.VoiceApp
 import com.voicetomessenger.data.AdminConfig
 import com.voicetomessenger.data.LanguageConfig
+import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.ProviderConfig
 import com.voicetomessenger.data.ProviderKind
 import com.voicetomessenger.data.StyleConfig
@@ -33,7 +34,9 @@ data class AdminUiState(
     val saved: AdminConfig? = null,
     val loadError: String? = null,
     val saving: Boolean = false,
-    /** Списки моделей по ключу провайдера, подтянутые кнопкой «Список». */
+    /** Подобранные модели с ценами. Пустой, если бэкенд старый и каталога не отдаёт. */
+    val catalog: ModelCatalog = ModelCatalog.EMPTY,
+    /** Списки моделей по ключу провайдера, подтянутые кнопкой «Все модели». */
     val models: Map<String, List<String>> = emptyMap(),
     val loadingModelsFor: String? = null,
     val test: TestState = TestState(),
@@ -67,6 +70,11 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     fun reload() {
         _state.update { it.copy(loading = true, loadError = null) }
         viewModelScope.launch {
+            // Каталог не критичен: без него поля моделей просто останутся без подсказок,
+            // а старый бэкенд его вообще не отдаёт — поэтому ошибку глотаем.
+            runCatching { container.admin.catalog() }.onSuccess { loaded ->
+                _state.update { it.copy(catalog = loaded) }
+            }
             runCatching { container.admin.loadConfig() }.fold(
                 onSuccess = { cfg ->
                     _state.update {
@@ -140,6 +148,7 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 baseUrl = "",
                 apiKey = "",
                 model = "",
+                asrModel = "",
             ),
         )
     }
@@ -151,8 +160,6 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun setAsrProvider(key: String) = edit { it.copy(asrProvider = key) }
-
-    fun setAsrModel(model: String) = edit { it.copy(asrModel = model) }
 
     fun setBasePrompt(text: String) = edit { it.copy(basePrompt = text) }
 

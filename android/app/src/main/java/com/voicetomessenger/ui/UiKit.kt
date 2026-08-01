@@ -4,8 +4,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -91,6 +95,32 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** Одна цифра статус-строки: подпись сверху, крупное значение снизу. Общая для игр с таймером
+ *  и счётчиками (Шульте, струп-тест) — статус-панели должны выглядеть одной семьёй. */
+@Composable
+fun Stat(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        SectionLabel(label)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** Тонкая вертикальная черта между значениями в [Stat]-строке. */
+@Composable
+fun StatDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(34.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
     )
 }
 

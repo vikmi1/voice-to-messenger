@@ -22,6 +22,7 @@
     <string name="action_new_message">Новое сообщение</string>
     <string name="action_cancel">Отмена</string>
     <string name="action_delete">Удалить</string>
+    <string name="action_send">Отправить</string>
     <string name="action_close">Закрыть</string>
 
     <!-- Главный экран -->
@@ -42,8 +43,12 @@
     <string name="status_processing">Готовлю сообщение…</string>
     <string name="status_done">Готово — проверь и отправь</string>
     <string name="status_failed">Не получилось</string>
+    <string name="status_limit_reached">Достигнут предел длины записи</string>
 
     <string name="rec_pause_hint">Пауза работает только при распознавании на сервере — переключается в настройках</string>
+    <string name="rec_limit_countdown">осталось %1$s</string>
+    <string name="limit_reached_title">Запись остановлена: 5 минут</string>
+    <string name="limit_reached_body">Это предел длины одной диктовки. Записанное сохранено — отправь его в обработку или удали и наговори заново.</string>
 
     <string name="type_label">Тип</string>
     <string name="type_message">Сообщение</string>
@@ -169,6 +174,29 @@
     <string name="schulte_best">Лучшее: %1$s с</string>
     <string name="schulte_last">Последнее: %1$s с</string>
     <string name="schulte_progress_hint">Столбики — последние попытки. Чем короче, тем быстрее.</string>
+
+    <!-- Струп-тест -->
+    <string name="stroop_name">Струп-тест</string>
+    <string name="stroop_title">Струп-тест</string>
+    <string name="stroop_hint">Называй цвет чернил, не читай слово</string>
+    <string name="stroop_start">Начать</string>
+    <string name="stroop_time_left">Осталось</string>
+    <string name="stroop_level">Уровень</string>
+    <string name="stroop_streak">Серия</string>
+    <string name="stroop_result_title">Раунд завершён</string>
+    <string name="stroop_new_record">Новый рекорд!</string>
+    <string name="stroop_stat_correct">Правильно</string>
+    <string name="stroop_stat_accuracy">Точность</string>
+    <string name="stroop_stat_reaction">Реакция</string>
+    <string name="stroop_stat_streak">Лучшая серия</string>
+    <string name="stroop_ms_value">%1$d мс</string>
+    <string name="stroop_play_again">Ещё раз</string>
+    <string name="stroop_color_red">Красный</string>
+    <string name="stroop_color_blue">Синий</string>
+    <string name="stroop_color_yellow">Жёлтый</string>
+    <string name="stroop_color_green">Зелёный</string>
+    <string name="stroop_color_orange">Оранжевый</string>
+    <string name="stroop_color_purple">Фиолетовый</string>
 
     <!-- Снекбары -->
     <string name="msg_note_saved">Сохранено в заметки</string>

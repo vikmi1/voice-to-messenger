@@ -197,6 +197,16 @@ class BubbleService : Service() {
                 actionsEnabled = false,
             )
 
+            // Предел длины: панель ждёт решения. «В заметки» на это время становится
+            // «Отправить» — отдельной кнопки в разметке нет, а решение нужно принять здесь
+            // же; «Закрыть» и так отменяет запись через finishSession().
+            is CaptureState.LimitReached -> showPanel(
+                status = localizedString(R.string.status_limit_reached),
+                text = state.raw,
+                actionsEnabled = false,
+                sendAfterLimit = true,
+            )
+
             is CaptureState.Processing -> showPanel(
                 status = localizedString(R.string.status_processing),
                 text = state.text,
@@ -217,13 +227,39 @@ class BubbleService : Service() {
         }
     }
 
-    private fun showPanel(status: String, text: String, actionsEnabled: Boolean) {
+    private fun showPanel(
+        status: String,
+        text: String,
+        actionsEnabled: Boolean,
+        /** Перевести кнопку заметки в режим «Отправить» — см. ветку LimitReached в [render]. */
+        sendAfterLimit: Boolean = false,
+    ) {
         val view = panelView ?: inflatePanel() ?: return
         view.findViewById<TextView>(R.id.panel_status).text = status
         view.findViewById<TextView>(R.id.panel_text).text = text
 
-        listOf(R.id.panel_copy, R.id.panel_share, R.id.panel_note).forEach { id ->
+        listOf(R.id.panel_copy, R.id.panel_share).forEach { id ->
             view.findViewById<Button>(id).isEnabled = actionsEnabled
+        }
+
+        // Кнопка заметки — единственная свободная под решение о пределе, поэтому она
+        // подменяется целиком: и подпись, и что делает. Обработчик ставится здесь, а не в
+        // inflatePanel(), потому что панель переиспользуется между состояниями.
+        view.findViewById<Button>(R.id.panel_note).apply {
+            isEnabled = actionsEnabled || sendAfterLimit
+            // this.text, а не text: одноимённый параметр showPanel() перекрыл бы свойство кнопки.
+            this.text =
+                localizedString(if (sendAfterLimit) R.string.action_send else R.string.action_save_note)
+            setOnClickListener {
+                if (sendAfterLimit) {
+                    pipeline.sendAfterLimit()
+                } else {
+                    currentText()?.let { ready ->
+                        scope.launch { appContainer.notes.add(ready) }
+                        finishSession()
+                    }
+                }
+            }
         }
     }
 
@@ -244,12 +280,8 @@ class BubbleService : Service() {
                 finishSession()
             }
         }
-        view.findViewById<Button>(R.id.panel_note).setOnClickListener {
-            currentText()?.let { text ->
-                scope.launch { appContainer.notes.add(text) }
-                finishSession()
-            }
-        }
+        // panel_note намеренно не настраивается здесь: его подпись и действие зависят от
+        // состояния и ставятся в showPanel() при каждой отрисовке.
         view.findViewById<Button>(R.id.panel_close).setOnClickListener { finishSession() }
         view.findViewById<ImageButton>(R.id.panel_power).setOnClickListener { shutDown() }
 

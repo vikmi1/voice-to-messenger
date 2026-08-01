@@ -17,6 +17,7 @@ private object Routes {
     const val GAMES = "games"
     const val GAME_2048 = "game_2048"
     const val SCHULTE = "schulte"
+    const val STROOP = "stroop"
 }
 
 @Composable
@@ -42,6 +43,7 @@ fun AppRoot(viewModel: MainViewModel) {
                     onBack = { navController.popBackStack() },
                     onOpen2048 = { navController.navigate(Routes.GAME_2048) },
                     onOpenSchulte = { navController.navigate(Routes.SCHULTE) },
+                    onOpenStroop = { navController.navigate(Routes.STROOP) },
                 )
             }
             composable(Routes.GAME_2048) {
@@ -49,6 +51,9 @@ fun AppRoot(viewModel: MainViewModel) {
             }
             composable(Routes.SCHULTE) {
                 SchulteScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.STROOP) {
+                StroopScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(

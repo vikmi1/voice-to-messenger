@@ -39,6 +39,7 @@ class SettingsRepository(context: Context) {
         val GAME_BEST = intPreferencesKey("game_best")
         val GAME_2048_STATE = stringPreferencesKey("game_2048_state")
         val SCHULTE_RESULTS = stringPreferencesKey("schulte_results")
+        val STROOP_BEST = intPreferencesKey("stroop_best")
     }
 
     /**
@@ -57,6 +58,9 @@ class SettingsRepository(context: Context) {
     val schulteResults: Flow<Map<Int, List<Long>>> = store.data.map { prefs ->
         prefs[Keys.SCHULTE_RESULTS]?.let(::parseSchulteResults) ?: emptyMap()
     }
+
+    /** Лучший счёт в струп-тесте. Отдельный поток по той же причине, что и [gameBest]. */
+    val stroopBest: Flow<Int> = store.data.map { it[Keys.STROOP_BEST] ?: 0 }
 
     val settings: Flow<Settings> = store.data.map { prefs ->
         val defaults = Settings()
@@ -137,6 +141,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun cacheOptions(options: Options) = store.edit {
         it[Keys.OPTIONS_JSON] = serializeOptions(options)
+    }
+
+    suspend fun setStroopBest(score: Int) = store.edit {
+        if (score > (it[Keys.STROOP_BEST] ?: 0)) it[Keys.STROOP_BEST] = score
     }
 }
 

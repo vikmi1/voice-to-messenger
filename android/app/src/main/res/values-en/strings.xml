@@ -20,6 +20,7 @@
     <string name="action_new_message">New message</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_delete">Delete</string>
+    <string name="action_send">Send</string>
     <string name="action_close">Close</string>
 
     <!-- Main screen -->
@@ -40,8 +41,12 @@
     <string name="status_processing">Preparing the message…</string>
     <string name="status_done">Done — check and send</string>
     <string name="status_failed">Didn’t work</string>
+    <string name="status_limit_reached">Recording length limit reached</string>
 
     <string name="rec_pause_hint">Pause works only with server recognition — switch it in settings</string>
+    <string name="rec_limit_countdown">%1$s left</string>
+    <string name="limit_reached_title">Recording stopped: 5 minutes</string>
+    <string name="limit_reached_body">That’s the maximum length for one dictation. What you recorded is saved — send it for processing, or delete it and start over.</string>
 
     <string name="type_label">Type</string>
     <string name="type_message">Message</string>
@@ -164,6 +169,29 @@
     <string name="schulte_best">Best: %1$s s</string>
     <string name="schulte_last">Last: %1$s s</string>
     <string name="schulte_progress_hint">Bars are your recent attempts. Shorter is faster.</string>
+
+    <!-- Stroop test -->
+    <string name="stroop_name">Stroop test</string>
+    <string name="stroop_title">Stroop test</string>
+    <string name="stroop_hint">Name the ink color, not the word</string>
+    <string name="stroop_start">Start</string>
+    <string name="stroop_time_left">Left</string>
+    <string name="stroop_level">Level</string>
+    <string name="stroop_streak">Streak</string>
+    <string name="stroop_result_title">Round over</string>
+    <string name="stroop_new_record">New record!</string>
+    <string name="stroop_stat_correct">Correct</string>
+    <string name="stroop_stat_accuracy">Accuracy</string>
+    <string name="stroop_stat_reaction">Reaction</string>
+    <string name="stroop_stat_streak">Best streak</string>
+    <string name="stroop_ms_value">%1$d ms</string>
+    <string name="stroop_play_again">Play again</string>
+    <string name="stroop_color_red">Red</string>
+    <string name="stroop_color_blue">Blue</string>
+    <string name="stroop_color_yellow">Yellow</string>
+    <string name="stroop_color_green">Green</string>
+    <string name="stroop_color_orange">Orange</string>
+    <string name="stroop_color_purple">Purple</string>
 
     <!-- Snackbars -->
     <string name="msg_note_saved">Saved to notes</string>

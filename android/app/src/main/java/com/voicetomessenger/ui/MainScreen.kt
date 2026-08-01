@@ -61,6 +61,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -99,6 +100,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.voicetomessenger.R
 import com.voicetomessenger.capture.CaptureState
+import com.voicetomessenger.capture.RECORDING_LIMIT_MS
 import com.voicetomessenger.data.Language
 import com.voicetomessenger.data.ProcessingMode
 import com.voicetomessenger.data.Style
@@ -110,6 +112,9 @@ import kotlinx.coroutines.delay
 private const val WAVE_BARS = 5
 private val WAVE_MIN_HEIGHT = 8.dp
 private val WAVE_MAX_HEIGHT = 44.dp
+
+/** За сколько до предела длины секундомер переключается на обратный отсчёт. */
+private const val LIMIT_WARNING_MS = 60_000L
 
 /** Кнопка микрофона и её «сцена». Высота сцены постоянна — кнопка не сдвигается никогда. */
 private val MIC_SIZE = 96.dp
@@ -268,6 +273,11 @@ fun MainScreen(
                         is CaptureState.Processing -> RawSection(state.raw)
                         is CaptureState.Done -> RawSection(state.raw)
                         is CaptureState.Failed -> ErrorCard(state.message, onRetry = viewModel::reset)
+                        is CaptureState.LimitReached -> LimitReachedCard(
+                            raw = state.raw,
+                            onSend = viewModel::sendCaptureAfterLimit,
+                            onDiscard = viewModel::reset,
+                        )
                         else -> Unit
                     }
                 }
@@ -442,6 +452,10 @@ private fun MicDockBody(
 @Composable
 private fun StatusLine(capture: CaptureState, recording: Boolean, elapsedMs: Long) {
     val brand = LocalBrand.current
+    // На последней минуте секундомер начинает считать в обратную сторону: предел не должен
+    // сработать неожиданно, иначе остановка читается как сбой, а не как правило.
+    val remainingMs = RECORDING_LIMIT_MS - elapsedMs
+    val nearLimit = recording && remainingMs <= LIMIT_WARNING_MS
     Row(
         modifier = Modifier.height(28.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -452,13 +466,17 @@ private fun StatusLine(capture: CaptureState, recording: Boolean, elapsedMs: Lon
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(brand.live),
+                    .background(if (nearLimit) MaterialTheme.colorScheme.error else brand.live),
             )
             Text(
-                text = formatElapsed(elapsedMs),
+                text = if (nearLimit) {
+                    stringResource(R.string.rec_limit_countdown, formatElapsed(remainingMs.coerceAtLeast(0)))
+                } else {
+                    formatElapsed(elapsedMs)
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = brand.live,
+                color = if (nearLimit) MaterialTheme.colorScheme.error else brand.live,
             )
         }
         Text(
@@ -852,6 +870,7 @@ private fun statusText(capture: CaptureState): String = when (capture) {
     is CaptureState.Listening ->
         if (capture.paused) stringResource(R.string.status_paused) else stringResource(R.string.status_listening)
     CaptureState.Transcribing -> stringResource(R.string.status_transcribing)
+    is CaptureState.LimitReached -> stringResource(R.string.status_limit_reached)
     is CaptureState.Processing -> stringResource(R.string.status_processing)
     is CaptureState.Done -> stringResource(R.string.status_done)
     is CaptureState.Failed -> stringResource(R.string.status_failed)
@@ -983,6 +1002,57 @@ private fun ResultComposer(
                     Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.action_new_message))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Запись упёрлась в предел длины и остановлена сама — решение отправить или удалить
+ * за пользователем, чтобы не платить за расшифровку/обработку вслепую.
+ *
+ * [raw] непуст только для on-device распознавания (там текст уже готов на момент предела);
+ * в серверном режиме превью нет — расшифровка ещё не запрошена, см. `CaptureState.LimitReached`.
+ */
+@Composable
+private fun LimitReachedCard(raw: String, onSend: () -> Unit, onDiscard: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Text(stringResource(R.string.limit_reached_title), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(stringResource(R.string.limit_reached_body), style = MaterialTheme.typography.bodyMedium)
+
+            if (raw.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                ) {
+                    Text(
+                        text = raw,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onDiscard, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.action_delete))
+                }
+                Button(onClick = onSend, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.action_send))
                 }
             }
         }

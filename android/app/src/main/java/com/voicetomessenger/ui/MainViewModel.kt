@@ -53,6 +53,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     val schulteResults: StateFlow<Map<Int, List<Long>>> = container.settings.schulteResults
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    val stroopBest: StateFlow<Int> = container.settings.stroopBest
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     /** Короткие сообщения для снекбара. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
@@ -88,6 +91,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     fun resumeCapture() = pipeline.resume()
 
     fun stopCapture() = pipeline.stop()
+
+    /** «Отправить» на карточке CaptureState.LimitReached — запись/текст, упёршиеся в предел длины. */
+    fun sendCaptureAfterLimit() = pipeline.sendAfterLimit()
 
     fun reset() = pipeline.reset()
 
@@ -152,6 +158,10 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     fun saveSchulteResult(size: Int, millis: Long) {
         viewModelScope.launch { container.settings.addSchulteResult(size, millis) }
+    }
+
+    fun saveStroopBest(score: Int) {
+        viewModelScope.launch { container.settings.setStroopBest(score) }
     }
 
     /** Проигрывает звук события, если звук включён (проверка внутри движка). */

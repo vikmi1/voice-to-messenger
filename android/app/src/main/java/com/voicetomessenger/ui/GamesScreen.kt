@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.voicetomessenger.R
 
 /** Пустые слоты под будущие игры: намёк на планы, а не половина экрана серых заглушек. */
-private const val PLACEHOLDER_COUNT = 4
+private const val PLACEHOLDER_COUNT = 3
 
 private val TILE_SHAPE = RoundedCornerShape(24.dp)
 
@@ -70,9 +70,11 @@ fun GamesScreen(
     onBack: () -> Unit,
     onOpen2048: () -> Unit,
     onOpenSchulte: () -> Unit,
+    onOpenStroop: () -> Unit,
 ) {
     val best by viewModel.gameBest.collectAsState()
     val schulte by viewModel.schulteResults.collectAsState()
+    val stroopBest by viewModel.stroopBest.collectAsState()
 
     // Лучшее время по всем размерам таблицы: на витрине важен сам факт результата.
     val schulteBest = schulte.values.flatten().minOrNull()
@@ -128,6 +130,18 @@ fun GamesScreen(
                         backdrop = listOf(Color(0xFFEDE7DC), Color(0xFFCFC2B1)),
                         onClick = onOpenSchulte,
                     ) { SchultePreview() }
+                }
+                item {
+                    GameTile(
+                        name = stringResource(R.string.stroop_name),
+                        stat = if (stroopBest > 0) {
+                            stringResource(R.string.game_stat_record, stroopBest)
+                        } else {
+                            stringResource(R.string.game_stat_none)
+                        },
+                        backdrop = listOf(Color(0xFFE3D9F2), Color(0xFFB9A6DE)),
+                        onClick = onOpenStroop,
+                    ) { StroopPreview() }
                 }
 
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -272,6 +286,28 @@ private fun SchultePreview() {
             textColor = if (flash) GamePalette.TextLight else GamePalette.TextDark,
             fontSize = 12.sp,
             modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** Классическая иллюстрация струп-эффекта: слово «синий», написанное красными чернилами. */
+@Composable
+private fun StroopPreview() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(0.68f)
+            .aspectRatio(1.3f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(GamePalette.LightCell),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.stroop_color_blue),
+            // Тот же красный, что StroopColor.RED в StroopScreen.kt — палитра игры локальна
+            // каждому экрану (см. Game2048Preview/SchultePreview выше), здесь достаточно одного тона.
+            color = Color(0xFFE53935),
+            fontWeight = FontWeight.Black,
+            fontSize = 20.sp,
         )
     }
 }

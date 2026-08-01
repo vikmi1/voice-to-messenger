@@ -1,6 +1,7 @@
 package com.voicetomessenger.capture
 
 import android.content.Context
+import android.os.SystemClock
 import com.voicetomessenger.R
 import com.voicetomessenger.asr.AudioRecorder
 import com.voicetomessenger.asr.OnDeviceRecognizer
@@ -14,6 +15,7 @@ import com.voicetomessenger.net.BackendClient
 import com.voicetomessenger.processing.LocalProcessor
 import com.voicetomessenger.processing.ProcessRequest
 import com.voicetomessenger.processing.ServerProcessor
+import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +31,16 @@ import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * Предел длины одной диктовки. Публична — тем же числом красит секундомер в интерфейсе
+ * перед самим пределом (см. `MainScreen.kt`), чтобы константа не разъехалась в двух местах.
+ *
+ * Решение пользователя 01.08.2026: если запись оборвётся молча, надиктованный текст
+ * потерян, а вспомнить поток мыслей невозможно. Поэтому предел не тихий таймаут, а
+ * видимая остановка с выбором — см. [CaptureState.LimitReached].
+ */
+const val RECORDING_LIMIT_MS = 5 * 60 * 1000L
 
 /** Что происходит с текущей диктовкой. */
 sealed interface CaptureState {
@@ -49,6 +61,18 @@ sealed interface CaptureState {
 
     /** Аудио ушло на серверный Whisper. */
     data object Transcribing : CaptureState
+
+    /**
+     * Запись упёрлась в [RECORDING_LIMIT_MS] и остановлена сама — но не отправлена дальше,
+     * пока пользователь не решит. Отправка стоит денег (расшифровка и/или обработка), поэтому
+     * решение явное, а не автоматическое продолжение молча.
+     *
+     * [raw] — уже распознанный текст, если он был доступен на момент остановки (ON_DEVICE
+     * отдаёт финальный текст сразу). Пусто в серверном режиме: там на этот момент есть только
+     * аудиофайл, транскрипция ещё не запрошена — запрашивать её только чтобы показать превью
+     * означало бы платить за текст, который вот-вот могут удалить не глядя.
+     */
+    data class LimitReached(val raw: String) : CaptureState
 
     /** Сырой текст получен, готовое сообщение набирается по кускам. */
     data class Processing(val raw: String, val text: String) : CaptureState
@@ -82,6 +106,10 @@ class VoicePipeline(
     private var processJob: Job? = null
     private var lastRaw: String = ""
     private var activeMode: AsrMode = AsrMode.ON_DEVICE
+
+    /** Что ждёт решения пользователя после [CaptureState.LimitReached] — файл или готовый текст. */
+    private var pendingLimitFile: File? = null
+    private var pendingLimitRaw: String? = null
 
     /**
      * Готовые тексты за текущую сессию диктовки.
@@ -185,7 +213,25 @@ class VoicePipeline(
             AsrMode.SERVER -> {
                 captureJob?.cancel()
                 captureJob = null
-                processJob = scope.launch(Dispatchers.Main.immediate) { transcribeAndProcess() }
+                processJob = scope.launch(Dispatchers.Main.immediate) { stopAndProcess() }
+            }
+        }
+    }
+
+    /**
+     * Пользователь решил отправить то, что упёрлось в предел длины — см. [CaptureState.LimitReached].
+     * Ровно один из двух источников непуст в зависимости от режима распознавания на момент предела.
+     */
+    fun sendAfterLimit() {
+        val file = pendingLimitFile
+        val raw = pendingLimitRaw
+        pendingLimitFile = null
+        pendingLimitRaw = null
+        processJob = scope.launch(Dispatchers.Main.immediate) {
+            when {
+                file != null -> transcribeAndProcess(file)
+                raw != null -> runProcessing(raw)
+                else -> _state.value = CaptureState.Idle
             }
         }
     }
@@ -243,6 +289,11 @@ class VoicePipeline(
         // относится к одному сообщению. Вызывается и из start(), и из reset().
         _spentCredits.value = 0
         countedUsage.clear()
+        // Не отправленный после предела файл никому больше не пригодится — иначе он утёк бы
+        // в кэше: reset()/новая запись стирают решение, но не подчищали за собой.
+        pendingLimitFile?.delete()
+        pendingLimitFile = null
+        pendingLimitRaw = null
     }
 
     fun release() {
@@ -251,20 +302,38 @@ class VoicePipeline(
     }
 
     private suspend fun listenOnDevice(languageTag: String) {
+        val startedAt = SystemClock.elapsedRealtime()
+        // За пределом просим движок закончить сам, тем же путём, что и ручная остановка.
+        // limitHit — не только флаг для ветки ниже, но и защита от повторных вызовов stop()
+        // на каждое следующее событие уровня, пока Final не долетит (это может занять время).
+        var limitHit = false
+
         // Подписываемся до старта распознавателя, иначе первые события потеряются.
         val terminal = recognizer.events
             .onSubscription { recognizer.start(languageTag) }
             .onEach { event ->
                 when (event) {
                     is OnDeviceRecognizer.Event.Partial -> updateListening { it.copy(partial = event.text) }
-                    is OnDeviceRecognizer.Event.Level -> updateListening { it.copy(level = event.value) }
+                    is OnDeviceRecognizer.Event.Level -> {
+                        updateListening { it.copy(level = event.value) }
+                        if (!limitHit && SystemClock.elapsedRealtime() - startedAt >= RECORDING_LIMIT_MS) {
+                            limitHit = true
+                            recognizer.stop()
+                        }
+                    }
                     else -> Unit
                 }
             }
             .first { it is OnDeviceRecognizer.Event.Final || it is OnDeviceRecognizer.Event.Failed }
 
         when (terminal) {
-            is OnDeviceRecognizer.Event.Final -> runProcessing(terminal.text)
+            is OnDeviceRecognizer.Event.Final ->
+                if (limitHit) {
+                    pendingLimitRaw = terminal.text
+                    _state.value = CaptureState.LimitReached(terminal.text)
+                } else {
+                    runProcessing(terminal.text)
+                }
             is OnDeviceRecognizer.Event.Failed -> _state.value = CaptureState.Failed(terminal.message)
             else -> Unit
         }
@@ -276,19 +345,36 @@ class VoicePipeline(
             _state.value = CaptureState.Failed(context.localizedString(R.string.err_record_start))
             return
         }
+        val startedAt = SystemClock.elapsedRealtime()
         while (recorder.isRecording) {
+            if (SystemClock.elapsedRealtime() - startedAt >= RECORDING_LIMIT_MS) {
+                val file = withContext(Dispatchers.IO) { recorder.stop() }
+                _state.value = if (file == null) {
+                    CaptureState.Failed(context.localizedString(R.string.err_record_empty))
+                } else {
+                    pendingLimitFile = file
+                    CaptureState.LimitReached("")
+                }
+                return
+            }
             updateListening { it.copy(level = recorder.level()) }
             delay(LEVEL_POLL_MS)
         }
     }
 
-    private suspend fun transcribeAndProcess() {
-        _state.value = CaptureState.Transcribing
+    /** Ручная остановка в серверном режиме: сама останавливает запись и сразу шлёт дальше. */
+    private suspend fun stopAndProcess() {
         val file = withContext(Dispatchers.IO) { recorder.stop() }
         if (file == null) {
             _state.value = CaptureState.Failed(context.localizedString(R.string.err_record_empty))
             return
         }
+        transcribeAndProcess(file)
+    }
+
+    /** Расшифровка уже остановленной записи — общий хвост для обычной остановки и «Отправить». */
+    private suspend fun transcribeAndProcess(file: File) {
+        _state.value = CaptureState.Transcribing
         val transcription = try {
             backend.transcribe(file)
         } catch (e: CancellationException) {

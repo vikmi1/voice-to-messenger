@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -310,29 +308,6 @@ private fun StatusRow(elapsedMs: Long, next: Int, errors: Int, finished: Boolean
             )
         }
     }
-}
-
-@Composable
-private fun Stat(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        SectionLabel(label)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-@Composable
-private fun StatDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(34.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
-    )
 }
 
 @Composable

@@ -20,6 +20,7 @@
     <string name="action_new_message">Neue Nachricht</string>
     <string name="action_cancel">Abbrechen</string>
     <string name="action_delete">Löschen</string>
+    <string name="action_send">Senden</string>
     <string name="action_close">Schließen</string>
 
     <!-- Hauptbildschirm -->
@@ -40,8 +41,12 @@
     <string name="status_processing">Nachricht wird vorbereitet …</string>
     <string name="status_done">Fertig — prüfen und senden</string>
     <string name="status_failed">Fehlgeschlagen</string>
+    <string name="status_limit_reached">Maximale Aufnahmelänge erreicht</string>
 
     <string name="rec_pause_hint">Pause funktioniert nur bei der Server-Erkennung — umschaltbar in den Einstellungen</string>
+    <string name="rec_limit_countdown">noch %1$s</string>
+    <string name="limit_reached_title">Aufnahme gestoppt: 5 Minuten</string>
+    <string name="limit_reached_body">Das ist die maximale Länge einer Aufnahme. Das Aufgenommene ist gespeichert — schick es zur Verarbeitung oder lösch es und sprich neu.</string>
 
     <string name="type_label">Typ</string>
     <string name="type_message">Nachricht</string>
@@ -164,6 +169,29 @@
     <string name="schulte_best">Beste: %1$s s</string>
     <string name="schulte_last">Letzte: %1$s s</string>
     <string name="schulte_progress_hint">Balken = letzte Versuche. Kürzer ist schneller.</string>
+
+    <!-- Stroop-Test -->
+    <string name="stroop_name">Stroop-Test</string>
+    <string name="stroop_title">Stroop-Test</string>
+    <string name="stroop_hint">Nenne die Farbe der Schrift, nicht das Wort</string>
+    <string name="stroop_start">Start</string>
+    <string name="stroop_time_left">Verbleibend</string>
+    <string name="stroop_level">Stufe</string>
+    <string name="stroop_streak">Serie</string>
+    <string name="stroop_result_title">Runde beendet</string>
+    <string name="stroop_new_record">Neuer Rekord!</string>
+    <string name="stroop_stat_correct">Richtig</string>
+    <string name="stroop_stat_accuracy">Genauigkeit</string>
+    <string name="stroop_stat_reaction">Reaktion</string>
+    <string name="stroop_stat_streak">Beste Serie</string>
+    <string name="stroop_ms_value">%1$d ms</string>
+    <string name="stroop_play_again">Nochmal</string>
+    <string name="stroop_color_red">Rot</string>
+    <string name="stroop_color_blue">Blau</string>
+    <string name="stroop_color_yellow">Gelb</string>
+    <string name="stroop_color_green">Grün</string>
+    <string name="stroop_color_orange">Orange</string>
+    <string name="stroop_color_purple">Violett</string>
 
     <!-- Snackbars -->
     <string name="msg_note_saved">In Notizen gespeichert</string>

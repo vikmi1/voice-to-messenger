@@ -24,6 +24,7 @@ import com.voicetomessenger.data.UsageRow
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -43,7 +44,11 @@ internal fun UsageTab(state: AdminUiState, viewModel: AdminViewModel) {
 
     Text("Период", style = MaterialTheme.typography.titleMedium)
     ChipRow(
-        options = listOf(7 to "7 дней", 30 to "30 дней", 90 to "90 дней", 365 to "год"),
+        // «1 день» — последние сутки от текущего момента, а не календарный сегодняшний
+        // день: за него отвечает карточка «Сегодня» ниже.
+        options = listOf(
+            1 to "1 день", 7 to "7 дней", 30 to "30 дней", 90 to "90 дней", 365 to "год",
+        ),
         selected = usage.days,
         onSelect = viewModel::loadUsage,
     )
@@ -75,6 +80,30 @@ internal fun UsageTab(state: AdminUiState, viewModel: AdminViewModel) {
 private fun UsageBody(report: UsageReport, loading: Boolean) {
     val total = report.total
 
+    // Сегодня — над итогом за период и всегда: за месяц набегает сумма, по которой не понять,
+    // много ли ушло прямо сейчас, а открывают вкладку обычно именно с этим вопросом.
+    Text("Сегодня", style = MaterialTheme.typography.titleMedium)
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            val today = report.today
+            if (today.requests == 0) {
+                Text(
+                    "Сегодня запросов не было",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Stat("Кредитов", today.credits.toString(), Modifier.weight(1f))
+                    Stat("Стоимость", groupMoney(today), Modifier.weight(1f))
+                    Stat("Запросов", today.requests.toString(), Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    Text("За период", style = MaterialTheme.typography.titleMedium)
+
     if (total.requests == 0) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -97,7 +126,7 @@ private fun UsageBody(report: UsageReport, loading: Boolean) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Stat("Кредитов", total.credits.toString(), Modifier.weight(1f))
-                Stat("В долларах", money(total.usd), Modifier.weight(1f))
+                Stat("Стоимость", groupMoney(total), Modifier.weight(1f))
                 Stat("Запросов", total.requests.toString(), Modifier.weight(1f))
             }
             Row(
@@ -141,6 +170,8 @@ private fun UsageBody(report: UsageReport, loading: Boolean) {
     Text("По дням", style = MaterialTheme.typography.titleMedium)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Сутки нарезает сервер по поясу телефона (см. AdminClient.usage), поэтому
+            // вечерняя диктовка попадает в тот день, в который она и была.
             // Последние дни сверху: свежее интереснее, а сервер отдаёт по возрастанию.
             report.byDay.asReversed().forEach { day ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -262,9 +293,23 @@ private fun groupMoney(group: UsageGroup): String = when {
     else -> money(group.usd)
 }
 
-/** Меньше цента показываем в центах: $0.0004 нечитаемо, 0.04 ¢ — понятно. */
-private fun money(usd: Double): String =
-    if (usd < 0.01) String.format("%.2f ¢", usd * 100) else String.format("$%.2f", usd)
+/**
+ * Всегда в долларах и всегда со знаком $. Раньше суммы меньше цента показывались в центах
+ * («0.40 ¢»), и 01.08.2026 это прочиталось как 40 центов — то есть в сто раз дороже правды.
+ * Мелкие суммы лучше показать лишними знаками после запятой, чем сменой единицы измерения.
+ *
+ * Locale.ROOT: в русской локали %f даёт запятую, и «$0,0040» читается как ещё один непонятный
+ * формат. Точка — то, что стоит в прайсах провайдеров.
+ */
+private fun money(usd: Double): String = when {
+    usd == 0.0 -> "$0"
+    usd < 0.0001 -> "<$0.0001"
+    // Порог 10 центов, а не 1: при двух знаках $0.0105 и $0.0140 оба схлопывались в «$0.01»,
+    // то есть заметно разные суммы выглядели одинаково. Нынешние месячные итоги целиком
+    // лежат ниже этого порога, так что подробный формат — основной, а не краевой случай.
+    usd < 0.1 -> String.format(Locale.ROOT, "$%.4f", usd)
+    else -> String.format(Locale.ROOT, "$%.2f", usd)
+}
 
 private fun tokens(count: Int): String =
     if (count >= 10_000) "${count / 1000}k" else count.toString()

@@ -25,6 +25,7 @@ import uuid
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
 
+import audio_meta
 import catalog
 import config_store
 import usage_store
@@ -118,6 +119,20 @@ def make_provider(name: str, prov: dict):
     if prov.get("kind") == "anthropic":
         return AnthropicProvider(prov["base_url"], api_key, prov["model"])
     return OpenAICompatibleProvider(prov["base_url"], api_key, prov["model"])
+
+
+def _audio_duration(file_bytes: bytes, from_provider: float | None) -> tuple[float, str]:
+    """Длительность аудио и откуда она взялась — для тарификации распознавания.
+
+    По убыванию доверия: сказал провайдер → прочитали в заголовке файла → прикинули по размеру.
+    Источник пишем в журнал рядом с числом, чтобы потом не гадать, насколько ему верить.
+    """
+    if from_provider is not None:
+        return from_provider, "provider"
+    exact = audio_meta.duration_seconds(file_bytes)
+    if exact is not None:
+        return round(exact, 1), "container"
+    return usage_store.estimate_seconds(len(file_bytes)), "estimate"
 
 
 def _examples(data: dict) -> list[str]:
@@ -261,18 +276,14 @@ def api_transcribe():
     except Exception as exc:  # noqa: BLE001
         app.logger.error("transcribe error: %s", exc, exc_info=True)
         # Неудачный запрос тоже пишем: провайдер мог успеть посчитать аудио, а нам важно
-        # видеть, что деньги ушли в ошибку.
+        # видеть, что деньги ушли в ошибку. Провайдер тут ничего не сказал — считаем сами.
+        seconds, source = _audio_duration(file_bytes, None)
         usage_store.record(**meta, ok=0, error=str(exc),
-                           audio_seconds=usage_store.estimate_seconds(len(file_bytes)),
-                           audio_seconds_source="estimate")
+                           audio_seconds=seconds, audio_seconds_source=source)
         return jsonify(error=str(exc)), 502
 
-    # Длительность от провайдера точна, оценка по размеру файла — нет, но она есть всегда
-    # и её достаточно, чтобы видеть порядок расхода. Источник пишем рядом, чтобы потом
-    # не гадать, откуда взялась цифра.
-    seconds = result.seconds if result.seconds is not None else usage_store.estimate_seconds(len(file_bytes))
-    usage_store.record(**meta, audio_seconds=seconds,
-                       audio_seconds_source="provider" if result.seconds is not None else "estimate")
+    seconds, source = _audio_duration(file_bytes, result.seconds)
+    usage_store.record(**meta, audio_seconds=seconds, audio_seconds_source=source)
 
     app.logger.info("transcribe ok: %d chars", len(result.text))
     return jsonify(text=result.text, usage_id=usage_id)
@@ -394,7 +405,18 @@ def admin_usage():
         raw = request.args.get(key)
         return min(top, max(1, int(raw))) if (raw or "").isdigit() else default
 
-    return jsonify(usage_store.report(days=as_int("days", 30, 365), limit=as_int("limit", 100, 500)))
+    # Сдвиг пояса панели от UTC, чтобы «сегодня» и разбивка по дням совпадали с часами
+    # того, кто смотрит. isdigit() не годится — сдвиг бывает отрицательным.
+    raw_tz = request.args.get("tz_offset") or ""
+    try:
+        tz_offset = max(-14 * 60, min(14 * 60, int(raw_tz)))
+    except ValueError:
+        tz_offset = 0
+
+    return jsonify(usage_store.report(
+        days=as_int("days", 30, 365), limit=as_int("limit", 100, 500),
+        tz_offset_minutes=tz_offset,
+    ))
 
 
 if __name__ == "__main__":

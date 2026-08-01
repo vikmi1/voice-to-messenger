@@ -15,7 +15,7 @@
 import os
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import catalog
 
@@ -28,12 +28,12 @@ _DB_PATH = os.environ.get(
 _lock = threading.Lock()
 
 # Наш рекордер пишет 32 кбит/с моно (см. AudioRecorder.kt) — это ровно 4000 байт в секунду.
-# Оценка по размеру нужна там, где провайдер не сказал длительность сам (проверено на проде
-# 01.08.2026: voxtral её не сообщает).
 #
-# ВАЖНО: оценка верна ТОЛЬКО для аудио нашего приложения. Файл в другом формате даст враньё —
-# трёхсекундный WAV посчитался как 24 секунды, потому что у него другой битрейт. Поэтому рядом
-# всегда пишется audio_bytes: по нему расход можно пересчитать, если формат окажется иным.
+# Последний рубеж, а не рабочий путь: длительность берётся у провайдера, а если он молчит —
+# из заголовка файла (`audio_meta.duration_seconds`), и только когда формат совсем незнаком,
+# считается отсюда. Оценка верна ТОЛЬКО для аудио нашего приложения: тот же звук в 64 кбит/с
+# она растянет с 24.5 с до 40 с, а трёхсекундный WAV сочтёт за 24 с. Поэтому рядом всегда
+# пишется audio_bytes: по нему расход можно пересчитать, если формат окажется иным.
 _BYTES_PER_SECOND = 4000
 
 _SCHEMA = """
@@ -76,7 +76,7 @@ def init_db() -> None:
 
 
 def estimate_seconds(audio_bytes: int) -> float:
-    """Длительность аудио по размеру файла — когда провайдер её не сообщил."""
+    """Длительность аудио по размеру файла — когда её не сказал ни провайдер, ни заголовок."""
     return round((audio_bytes or 0) / _BYTES_PER_SECOND, 1)
 
 
@@ -123,10 +123,32 @@ def get(usage_id: str) -> dict | None:
     return _priced(row) if row else None
 
 
-def report(days: int = 30, limit: int = 100) -> dict:
-    """Сводка за период: итоги, разбивка по дням и по моделям, последние запросы.
+def _totals(priced: list[dict]) -> dict:
+    """Итоги по набору строк: запросы, токены, аудио, деньги."""
+    total = {
+        "requests": len(priced),
+        "input_tokens": sum(p["input_tokens"] or 0 for p in priced),
+        "output_tokens": sum(p["output_tokens"] or 0 for p in priced),
+        "cached_tokens": sum(p["cached_tokens"] or 0 for p in priced),
+        "audio_seconds": round(sum(p["audio_seconds"] or 0 for p in priced), 1),
+        "usd": round(sum(p["usd"] or 0 for p in priced), 6),
+        "errors": sum(1 for p in priced if not p["ok"]),
+        # Сколько запросов посчитать не удалось — модели нет в каталоге или нет длительности.
+        "unpriced": sum(1 for p in priced if p["usd"] is None),
+    }
+    total["credits"] = catalog.credits(total["usd"])
+    return total
+
+
+def report(days: int = 30, limit: int = 100, tz_offset_minutes: int = 0) -> dict:
+    """Сводка за период: итоги, сегодняшний день, разбивка по дням и моделям, последние запросы.
 
     Считаем в Python, а не в SQL: стоимость зависит от каталога, которого в базе нет.
+
+    Время в базе — UTC, а «день» у смотрящего свой: в поясе UTC+2 диктовка в час ночи лежит
+    во вчерашнем UTC-дне. Поэтому день считаем в поясе панели ([tz_offset_minutes] — сдвиг от
+    UTC в минутах, как его отдаёт клиент), иначе «по дням» расходилось бы со столбцом времени
+    в списке запросов, который и раньше показывался местным.
     """
     since = f"-{max(1, int(days))} days"
     with _lock, _connect() as conn:
@@ -139,27 +161,23 @@ def report(days: int = 30, limit: int = 100) -> dict:
         ).fetchall()
 
     priced = [_priced(r) for r in rows]
+    shift = timedelta(minutes=tz_offset_minutes)
 
-    total = {
-        "requests": len(priced),
-        "input_tokens": sum(p["input_tokens"] or 0 for p in priced),
-        "output_tokens": sum(p["output_tokens"] or 0 for p in priced),
-        "cached_tokens": sum(p["cached_tokens"] or 0 for p in priced),
-        "audio_seconds": round(sum(p["audio_seconds"] or 0 for p in priced), 1),
-        "usd": round(sum(p["usd"] or 0 for p in priced), 4),
-        "errors": sum(1 for p in priced if not p["ok"]),
-        # Сколько запросов посчитать не удалось — модели нет в каталоге или нет длительности.
-        "unpriced": sum(1 for p in priced if p["usd"] is None),
-    }
-    total["credits"] = catalog.credits(total["usd"])
+    def local_day(ts: str) -> str:
+        """Календарный день в поясе панели. Мусорный ts — в свою корзину, лишь бы не падать."""
+        try:
+            return (datetime.fromisoformat(ts) + shift).strftime("%Y-%m-%d")
+        except ValueError:
+            return ts[:10]
 
     by_day: dict[str, dict] = {}
     by_model: dict[str, dict] = {}
     for p in priced:
+        p["day"] = local_day(p["ts"])
         # unpriced в каждой группе: без него сумма нулей выглядела бы как «бесплатно»,
         # хотя на деле цена неизвестна. Панель по этому счётчику рисует прочерк.
-        day = by_day.setdefault(p["ts"][:10],
-                                {"day": p["ts"][:10], "requests": 0, "usd": 0.0, "unpriced": 0})
+        day = by_day.setdefault(p["day"],
+                                {"day": p["day"], "requests": 0, "usd": 0.0, "unpriced": 0})
         day["requests"] += 1
         day["unpriced"] += p["usd"] is None
         day["usd"] = round(day["usd"] + (p["usd"] or 0), 6)
@@ -176,10 +194,17 @@ def report(days: int = 30, limit: int = 100) -> dict:
         m["output_tokens"] += p["output_tokens"] or 0
         m["audio_seconds"] = round(m["audio_seconds"] + (p["audio_seconds"] or 0), 1)
 
+    # Сегодня — отдельно от выбранного периода: за месяц набегает сумма, по которой не понять,
+    # много ли потрачено прямо сейчас, а именно этот вопрос и задают, открывая вкладку.
+    today = local_day(datetime.now(timezone.utc).isoformat())
+    today_total = _totals([p for p in priced if p["day"] == today])
+    today_total["day"] = today
+
     return {
         "days": days,
         "credit_usd": catalog.CREDIT_USD,
-        "total": total,
+        "total": _totals(priced),
+        "today": today_total,
         "by_day": sorted(by_day.values(), key=lambda d: d["day"]),
         "by_model": sorted(by_model.values(), key=lambda m: -m["usd"]),
         "recent": priced[:limit],

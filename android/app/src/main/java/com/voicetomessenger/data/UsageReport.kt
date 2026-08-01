@@ -18,30 +18,24 @@ data class UsageReport(
     /** Сколько долларов в одном кредите — чтобы подпись не расходилась с сервером. */
     val creditUsd: Double,
     val total: UsageTotal,
+    /** Итог за сегодняшний день в поясе телефона. Считает сервер — ему передан наш сдвиг от UTC. */
+    val today: UsageTotal,
     val byModel: List<UsageByModel>,
     val byDay: List<UsageByDay>,
     val recent: List<UsageRow>,
 ) {
     companion object {
-        val EMPTY = UsageReport(0, 0.0, UsageTotal(), emptyList(), emptyList(), emptyList())
+        val EMPTY =
+            UsageReport(0, 0.0, UsageTotal(), UsageTotal(), emptyList(), emptyList(), emptyList())
 
         fun parse(json: String): UsageReport {
             val root = JSONObject(json)
-            val t = root.optJSONObject("total") ?: JSONObject()
             return UsageReport(
                 days = root.optInt("days"),
                 creditUsd = root.optDouble("credit_usd", 0.0),
-                total = UsageTotal(
-                    requests = t.optInt("requests"),
-                    inputTokens = t.optInt("input_tokens"),
-                    outputTokens = t.optInt("output_tokens"),
-                    cachedTokens = t.optInt("cached_tokens"),
-                    audioSeconds = t.optDouble("audio_seconds", 0.0),
-                    usd = t.optDouble("usd", 0.0),
-                    credits = t.optIntOrNull("credits") ?: 0,
-                    errors = t.optInt("errors"),
-                    unpriced = t.optInt("unpriced"),
-                ),
+                total = parseTotal(root.optJSONObject("total")),
+                // Старый бэкенд поля не отдаёт — пустой итог честнее выдуманного.
+                today = parseTotal(root.optJSONObject("today")),
                 byModel = root.optJSONArray("by_model").mapObjects {
                     UsageByModel(
                         key = it.optString("key"),
@@ -76,6 +70,21 @@ data class UsageReport(
             )
         }
 
+        private fun parseTotal(json: JSONObject?): UsageTotal {
+            val t = json ?: return UsageTotal()
+            return UsageTotal(
+                requests = t.optInt("requests"),
+                inputTokens = t.optInt("input_tokens"),
+                outputTokens = t.optInt("output_tokens"),
+                cachedTokens = t.optInt("cached_tokens"),
+                audioSeconds = t.optDouble("audio_seconds", 0.0),
+                usd = t.optDouble("usd", 0.0),
+                credits = t.optIntOrNull("credits") ?: 0,
+                errors = t.optInt("errors"),
+                unpriced = t.optInt("unpriced"),
+            )
+        }
+
         /** optInt превращает null в 0 — а нам нужно отличать «не посчитано» от «бесплатно». */
         private fun JSONObject.optIntOrNull(key: String): Int? =
             if (isNull(key)) null else optInt(key)
@@ -89,17 +98,17 @@ data class UsageReport(
 }
 
 data class UsageTotal(
-    val requests: Int = 0,
+    override val requests: Int = 0,
     val inputTokens: Int = 0,
     val outputTokens: Int = 0,
     val cachedTokens: Int = 0,
     val audioSeconds: Double = 0.0,
-    val usd: Double = 0.0,
+    override val usd: Double = 0.0,
     val credits: Int = 0,
     val errors: Int = 0,
     /** Сколько запросов посчитать не удалось — модели нет в каталоге цен. */
-    val unpriced: Int = 0,
-)
+    override val unpriced: Int = 0,
+) : UsageGroup
 
 /** Общее для группировок: сумма занижена, если часть запросов осталась без цены. */
 sealed interface UsageGroup {

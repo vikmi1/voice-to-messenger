@@ -5,30 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voice-to-Messenger — настройки</title>
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    /* Шкала кеглей: четыре ступени с шагом ~1.25. Раньше их было шесть
+       (12/13/14/15/17/20), и соседние отличались на 7–8% — такую разницу глаз не читает
+       как иерархию, зато каждый новый элемент требовал выбора между почти одинаковыми
+       числами. Различение здесь держится ещё и на цвете с насыщенностью, поэтому ступеней
+       нужно мало, но заметных. */
+    --fs-caption: 12px;   /* подписи, заголовки таблиц, приглушённые пояснения */
+    --fs-body: 15px;      /* основной текст, кнопки, данные в таблицах */
+    --fs-title: 19px;     /* шапка страницы */
+    --fs-stat: 24px;      /* цифры расхода — единственное, что читают издалека */
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #0f1115; color: #e6e8ec; }
+  body { margin: 0; font: var(--fs-body)/1.5 system-ui, sans-serif; background: #0f1115; color: #e6e8ec; }
   header { padding: 18px 22px; border-bottom: 1px solid #262a33; display: flex;
            align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header h1 { font-size: var(--fs-title); margin: 0; font-weight: 600; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 22px; }
   .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
   .tabs button { background: #1a1d24; color: #c3c7cf; border: 1px solid #262a33; border-radius: 8px;
-                 padding: 8px 14px; cursor: pointer; font-size: 14px; }
+                 padding: 8px 14px; cursor: pointer; font-size: var(--fs-body); }
   .tabs button.active { background: #2b6cff; color: #fff; border-color: #2b6cff; }
   .panel { display: none; }
   .panel.active { display: block; }
   .card { background: #161922; border: 1px solid #262a33; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-  label { display: block; font-size: 13px; color: #9aa0ab; margin: 10px 0 4px; }
+  label { display: block; font-size: var(--fs-caption); color: #9aa0ab; margin: 10px 0 4px; }
   input, textarea, select { width: 100%; background: #0f1115; color: #e6e8ec; border: 1px solid #2b303b;
                             border-radius: 8px; padding: 9px 11px; font: inherit; }
   textarea { min-height: 90px; resize: vertical; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .btn { background: #2b6cff; color: #fff; border: none; border-radius: 8px; padding: 10px 18px;
-         font-size: 14px; cursor: pointer; }
+         font-size: var(--fs-body); cursor: pointer; }
   .btn.secondary { background: #262a33; }
-  .btn.small { padding: 5px 10px; font-size: 13px; }
-  .muted { color: #7a8089; font-size: 13px; }
+  .btn.small { padding: 5px 10px; font-size: var(--fs-caption); }
+  .muted { color: #7a8089; font-size: var(--fs-caption); }
   .prov-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
            background: #1f7a3d; color: #fff; padding: 10px 18px; border-radius: 8px; opacity: 0;
@@ -37,13 +48,13 @@
   code { background: #0f1115; padding: 2px 6px; border-radius: 5px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
   .stat { background: #0f1115; border: 1px solid #262a33; border-radius: 10px; padding: 10px 12px; }
-  .stat b { display: block; font-size: 20px; font-weight: 600; }
-  .stat span { color: #7a8089; font-size: 12px; }
+  .stat b { display: block; font-size: var(--fs-stat); font-weight: 600; }
+  .stat span { color: #7a8089; font-size: var(--fs-caption); }
   /* Таблицы расхода шире экрана телефона — прокручиваем их, а не страницу. */
   .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
   th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #21252e; white-space: nowrap; }
-  th { color: #7a8089; font-weight: 500; }
+  th { color: #7a8089; font-weight: 500; font-size: var(--fs-caption); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.failed td { color: #e0736b; }
   @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
@@ -133,10 +144,18 @@
 
   <div id="usage" class="panel">
     <div class="card">
+      <label>Сегодня</label>
+      <div class="stats" id="usage_today"></div>
+    </div>
+
+    <div class="card">
       <div class="prov-head">
         <div>
           <label style="margin:0;">Период</label>
           <select id="usage_days" style="width:auto;" onchange="loadUsage()">
+            <!-- «1 день» — это последние сутки от текущего момента, а не календарный
+                 сегодняшний день: за него отвечает карточка «Сегодня» выше. -->
+            <option value="1">1 день</option>
             <option value="7">7 дней</option>
             <option value="30" selected>30 дней</option>
             <option value="90">90 дней</option>
@@ -157,6 +176,8 @@
     <div class="card">
       <label>По дням</label>
       <div class="scroll"><table id="usage_days_table"></table></div>
+      <p class="muted" style="margin-top:10px;">Сутки считаются по часам этого браузера, а не
+        по UTC: вечерняя диктовка попадает в тот день, в который она и была.</p>
     </div>
 
     <div class="card">
@@ -472,10 +493,17 @@ async function runTest() {
 
 // --- Расход ---------------------------------------------------------------
 
+// Всегда в долларах и всегда со знаком $. Раньше суммы меньше цента показывались в центах
+// («0.40 ¢»), и 01.08.2026 это прочиталось как 40 центов — то есть в сто раз дороже правды.
+// Мелкие суммы лучше показать лишними знаками после запятой, чем сменой единицы измерения.
 function money(usd) {
   if (usd == null) return "—";
-  // Меньше цента показываем в центах: $0.0004 нечитаемо, 0.04 ¢ — понятно.
-  return usd < 0.01 ? `${(usd * 100).toFixed(2)} ¢` : `$${usd.toFixed(2)}`;
+  if (usd === 0) return "$0";
+  if (usd < 0.0001) return "<$0.0001";
+  // Порог 10 центов, а не 1: при двух знаках $0.0105 и $0.0140 оба схлопывались в «$0.01»,
+  // то есть заметно разные суммы выглядели одинаково. Нынешние месячные итоги целиком
+  // лежат ниже этого порога, так что подробный формат — основной, а не краевой случай.
+  return usd < 0.1 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
 }
 
 /** Сумма по группе, где часть запросов могла остаться без цены.
@@ -504,14 +532,27 @@ function table(el, columns, rows, rowClass) {
 
 async function loadUsage() {
   const days = document.getElementById("usage_days").value;
-  const r = await fetch("/admin/api/usage?days=" + days);
+  // Пояс браузера — чтобы «сегодня» и разбивка по дням шли по местным суткам, а не по UTC.
+  const tz = -new Date().getTimezoneOffset();
+  const r = await fetch(`/admin/api/usage?days=${days}&tz_offset=${tz}`);
   if (!r.ok) { toast("Не удалось загрузить расход"); return; }
   const d = await r.json();
   const t = d.total;
 
+  // Сегодняшний день отдельной строкой: за месяц набегает сумма, по которой не понять,
+  // много ли ушло прямо сейчас.
+  const today = d.today || { requests: 0, usd: 0, credits: 0, unpriced: 0 };
+  document.getElementById("usage_today").innerHTML = today.requests
+    ? [
+        [today.credits ?? "—", "кредитов"],
+        [groupMoney(today), "сегодня"],
+        [today.requests, "запросов"],
+      ].map(([v, n]) => `<div class="stat"><b>${v}</b><span>${n}</span></div>`).join("")
+    : `<div class="stat"><b>—</b><span>сегодня запросов не было</span></div>`;
+
   document.getElementById("usage_totals").innerHTML = [
     [t.credits ?? "—", "кредитов"],
-    [money(t.usd), "в долларах"],
+    [groupMoney(t), "стоимость"],
     [t.requests, "запросов"],
     [`${(t.input_tokens / 1000).toFixed(1)}k`, "токенов входа"],
     [`${(t.output_tokens / 1000).toFixed(1)}k`, "токенов выхода"],

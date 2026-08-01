@@ -21,6 +21,11 @@ private const val SERVER_JSON = """
     "requests": 4, "input_tokens": 2149, "output_tokens": 221, "cached_tokens": 800,
     "audio_seconds": 84.0, "usd": 0.0062, "credits": 7, "errors": 1, "unpriced": 1
   },
+  "today": {
+    "requests": 1, "input_tokens": 200, "output_tokens": 50, "cached_tokens": 0,
+    "audio_seconds": 0.0, "usd": 0.0, "credits": 0, "errors": 0, "unpriced": 1,
+    "day": "2026-08-01"
+  },
   "by_model": [
     {"key": "openai/gpt-4o", "op": "process", "requests": 2, "unpriced": 0,
      "input_tokens": 1949, "output_tokens": 171, "audio_seconds": 0.0, "usd": 0.005},
@@ -103,11 +108,28 @@ class UsageReportTest {
     }
 
     @Test
+    fun `итог за сегодня читается отдельно от периода`() {
+        assertEquals(1, report.today.requests)
+        assertEquals(200, report.today.inputTokens)
+        assertEquals(0, report.today.credits)
+        // Единственный сегодняшний запрос — без цены, поэтому ноль показывать нельзя.
+        assertTrue("сумма за день неизвестна, а не равна нулю", report.today.allUnpriced)
+    }
+
+    @Test
     fun `пустой ответ не роняет разбор`() {
         val empty = UsageReport.parse("""{"days": 7, "credit_usd": 0.001, "total": {}}""")
         assertEquals(0, empty.total.requests)
         assertTrue(empty.byModel.isEmpty())
         assertTrue(empty.byDay.isEmpty())
         assertTrue(empty.recent.isEmpty())
+    }
+
+    @Test
+    fun `бэкенд без итога за день не роняет разбор`() {
+        // На сервере может стоять версия старше этого поля — панель должна открыться.
+        val old = UsageReport.parse("""{"days": 7, "credit_usd": 0.001, "total": {"requests": 3}}""")
+        assertEquals(3, old.total.requests)
+        assertEquals(0, old.today.requests)
     }
 }

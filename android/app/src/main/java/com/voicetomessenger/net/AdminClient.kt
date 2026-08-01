@@ -4,6 +4,8 @@ import com.voicetomessenger.data.AdminConfig
 import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.data.UsageReport
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,8 +59,12 @@ class AdminClient(private val settings: SettingsRepository) {
     /** Сводка расхода за последние [days] дней. Старый бэкенд отдаст 404 — см. вызывающего. */
     suspend fun usage(days: Int): UsageReport = withContext(Dispatchers.IO) {
         val (base, token) = credentials()
+        // Сдвиг пояса телефона от UTC в минутах: по нему сервер нарезает сутки, чтобы
+        // «сегодня» и разбивка по дням шли по местным часам, а не по UTC.
+        val tzOffset = ZoneId.systemDefault().rules.getOffset(Instant.now()).totalSeconds / 60
         val url = "$base/admin/api/usage".toHttpUrl().newBuilder()
             .addQueryParameter("days", days.toString())
+            .addQueryParameter("tz_offset", tzOffset.toString())
             .build()
         val request = Request.Builder().url(url).header("X-Admin-Token", token).get().build()
 

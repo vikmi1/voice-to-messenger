@@ -311,6 +311,9 @@ class Bridge:
         self.previous_original = ""
         self.unit_no = 0
         self.stopping = False
+        # Попросили ли распознавание закончить. Отличает «кусок закрыт» от «сессия
+        # закончилась»: событие `transcription.done` приходит и там, и там.
+        self.ending = False
         self.error: str | None = None
 
     # -- отправка в приложение ------------------------------------------
@@ -439,10 +442,15 @@ class Bridge:
             self._send({"type": "language", "code": self.audio_language})
 
         elif kind == "transcription.done":
+            # Конец куска, а не сессии: Mistral отвечает этим событием на каждый
+            # `input_audio.flush`, то есть после каждой замолчавшей фразы. Пока мы
+            # считали его концом распознавания, переводилась ровно одна фраза:
+            # чтение событий останавливалось, звук продолжал литься в пустоту.
+            # Расходимся только если сами попросили закончить (`input_audio.end`).
             unit = self.assembler.take()
             if unit:
                 self._queue_unit(unit)
-            return False
+            return not self.ending
 
         elif kind == "error":
             detail = event.get("error") or {}
@@ -502,8 +510,12 @@ class Bridge:
                     await self._pump_client(upstream, inbox, started)
                 finally:
                     # Досылаем «аудио кончилось»: модель отдаст остаток текста и закроет поток.
+                    self.ending = True
                     try:
-                        await upstream.send(json.dumps({"type": "input_audio.flush"}))
+                        # Пустой буфер флашить нельзя — распознавание отвечает на это
+                        # ошибкой и рвёт связь. Если человек так и не заговорил, сразу end.
+                        if self.ledger.audio_bytes:
+                            await upstream.send(json.dumps({"type": "input_audio.flush"}))
                         await upstream.send(json.dumps({"type": "input_audio.end"}))
                         await asyncio.wait_for(pump, timeout=8)
                     except Exception:  # noqa: BLE001 — связь могла уже оборваться

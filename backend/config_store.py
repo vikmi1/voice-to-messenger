@@ -20,6 +20,26 @@ _DB_PATH = os.environ.get(
 _lock = threading.Lock()
 
 
+_MISTRAL_URL = "https://api.mistral.ai/v1"
+
+
+def _default_live() -> dict:
+    models = catalog.default_live_models(_MISTRAL_URL)
+    return {
+        "stt_provider": "mistral",
+        "stt_model": models["stt_model"],
+        "translate_provider": "mistral",
+        "translate_model": "mistral-small-latest",
+        "tts_provider": "mistral",
+        "tts_model": models["tts_model"],
+        # Пусто — голос по умолчанию у провайдера. Свой можно вписать в панели.
+        "tts_voice": "",
+        # Потолок одной сессии. Живой перевод тратит деньги, пока включён, поэтому
+        # оставленный без присмотра микрофон должен выключаться сам.
+        "session_limit_minutes": 10,
+    }
+
+
 def _default_config() -> dict:
     return {
         "active_provider": "mistral",
@@ -59,6 +79,10 @@ def _default_config() -> dict:
         },
         # Кто распознаёт речь на сервере. Модель — в карточке этого провайдера.
         "asr": {"provider": "openai"},
+        # Живой перевод: три разные модели, поэтому настройки свои, а не из карточки
+        # провайдера. Потоковое распознавание есть только у Mistral; перевод намеренно
+        # держим на дешёвой быстрой модели — в живом режиме он вызывается на каждую фразу.
+        "live": _default_live(),
         "base_prompt": DEFAULT_BASE_PROMPT,
         "styles": [
             # «Мой стиль» — пустой prompt: тон задаётся few-shot-примерами сообщений
@@ -120,6 +144,15 @@ def _migrate(cfg: dict) -> bool:
             "" if prov.get("kind") == "anthropic" else catalog.default_asr_model(prov.get("base_url"))
         )
         changed = True
+
+    # Живой перевод появился позже — у боевого конфига раздела нет вовсе.
+    # Дополняем по полю, а не целиком: иначе правка одной настройки в панели
+    # затиралась бы дефолтами при следующем чтении.
+    live = cfg.setdefault("live", {})
+    for key, value in _default_live().items():
+        if key not in live:
+            live[key] = value
+            changed = True
 
     # Переход на три стиля с «Моим стилем». Признак старого набора — отсутствие id "mine".
     # Заменяем только дефолтный набор; если админ уже завёл свой стиль mine — не трогаем.

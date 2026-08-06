@@ -9,6 +9,7 @@ import com.voicetomessenger.AppContainer
 import com.voicetomessenger.VoiceApp
 import com.voicetomessenger.data.AdminConfig
 import com.voicetomessenger.data.LanguageConfig
+import com.voicetomessenger.data.LiveConfig
 import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.ProviderConfig
 import com.voicetomessenger.data.ProviderKind
@@ -170,6 +171,8 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun setAsrProvider(key: String) = edit { it.copy(asrProvider = key) }
+
+    fun setLive(live: LiveConfig) = edit { it.copy(live = live) }
 
     fun setBasePrompt(text: String) = edit { it.copy(basePrompt = text) }
 

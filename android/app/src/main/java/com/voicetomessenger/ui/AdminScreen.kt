@@ -63,7 +63,8 @@ import com.voicetomessenger.data.ProviderKind
 import com.voicetomessenger.data.StyleConfig
 
 private val TABS = listOf(
-    "Провайдеры", "Распознавание", "Промпт", "Стили", "Языки", "Тест", "Расход", "Доступ",
+    "Провайдеры", "Распознавание", "Живой перевод", "Промпт", "Стили", "Языки",
+    "Тест", "Расход", "Доступ",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -126,11 +127,12 @@ fun AdminScreen(viewModel: AdminViewModel, onBack: () -> Unit) {
                         when (tab) {
                             0 -> ProvidersTab(state, draft, viewModel)
                             1 -> AsrTab(draft, viewModel)
-                            2 -> PromptTab(draft, viewModel)
-                            3 -> StylesTab(draft, viewModel)
-                            4 -> LanguagesTab(draft, viewModel)
-                            5 -> TestTab(state, draft, viewModel)
-                            6 -> UsageTab(state, viewModel)
+                            2 -> LiveTab(draft, viewModel)
+                            3 -> PromptTab(draft, viewModel)
+                            4 -> StylesTab(draft, viewModel)
+                            5 -> LanguagesTab(draft, viewModel)
+                            6 -> TestTab(state, draft, viewModel)
+                            7 -> UsageTab(state, viewModel)
                             else -> AccessTab(draft, viewModel, onBack)
                         }
                     }
@@ -456,6 +458,102 @@ private fun AsrTab(draft: AdminConfig, viewModel: AdminViewModel) {
             )
         }
     }
+}
+
+@Composable
+private fun LiveTab(draft: AdminConfig, viewModel: AdminViewModel) {
+    val live = draft.live
+    // Потоковое распознавание и синтез идут по OpenAI-совместимым эндпоинтам,
+    // которых у Anthropic нет.
+    val openAiProviders = draft.providers
+        .filter { it.kind == ProviderKind.OPENAI }
+        .map { it.key to it.label.ifBlank { it.key } }
+    val allProviders = draft.providers.map { it.key to it.label.ifBlank { it.key } }
+
+    Text("Живой перевод", style = MaterialTheme.typography.titleMedium)
+    Text(
+        "Экран живого перевода: микрофон слушает говорящего, язык определяется сам. " +
+            "Одной модели на всё нет, поэтому здесь три — распознавание, перевод и озвучка.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    Text("Потоковое распознавание", style = MaterialTheme.typography.labelLarge)
+    ChipRow(
+        options = openAiProviders,
+        selected = live.sttProvider,
+        onSelect = { viewModel.setLive(live.copy(sttProvider = it)) },
+    )
+    OutlinedTextField(
+        value = live.sttModel,
+        onValueChange = { viewModel.setLive(live.copy(sttModel = it)) },
+        label = { Text("Модель распознавания") },
+        supportingText = {
+            Text("Нужен WebSocket /audio/transcriptions/realtime — на 06.08.2026 только у Mistral")
+        },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    HorizontalDivider()
+
+    Text("Перевод", style = MaterialTheme.typography.labelLarge)
+    ChipRow(
+        options = allProviders,
+        selected = live.translateProvider,
+        onSelect = { viewModel.setLive(live.copy(translateProvider = it)) },
+    )
+    OutlinedTextField(
+        value = live.translateModel,
+        onValueChange = { viewModel.setLive(live.copy(translateModel = it)) },
+        label = { Text("Модель перевода") },
+        supportingText = {
+            Text("Вызывается на каждую фразу — здесь нужна дешёвая и быстрая, а не флагман")
+        },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    HorizontalDivider()
+
+    Text("Озвучка", style = MaterialTheme.typography.labelLarge)
+    ChipRow(
+        options = openAiProviders,
+        selected = live.ttsProvider,
+        onSelect = { viewModel.setLive(live.copy(ttsProvider = it)) },
+    )
+    OutlinedTextField(
+        value = live.ttsModel,
+        onValueChange = { viewModel.setLive(live.copy(ttsModel = it)) },
+        label = { Text("Модель синтеза речи") },
+        supportingText = { Text("Пусто — перевод только текстом, без голоса в наушнике") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = live.ttsVoice,
+        onValueChange = { viewModel.setLive(live.copy(ttsVoice = it)) },
+        label = { Text("Голос") },
+        supportingText = { Text("Пусто — голос провайдера по умолчанию") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    HorizontalDivider()
+
+    OutlinedTextField(
+        value = live.sessionLimitMinutes.toString(),
+        onValueChange = { raw ->
+            val minutes = raw.filter { it.isDigit() }.take(3).toIntOrNull() ?: 0
+            viewModel.setLive(live.copy(sessionLimitMinutes = minutes))
+        },
+        label = { Text("Предел одной сессии, минут") },
+        supportingText = {
+            Text("Забытый включённым микрофон тратит деньги молча — сессия закроется сама")
+        },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

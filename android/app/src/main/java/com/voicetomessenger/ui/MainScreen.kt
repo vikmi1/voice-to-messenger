@@ -54,6 +54,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -128,6 +129,7 @@ fun MainScreen(
     onOpenNotes: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenGames: () -> Unit,
+    onOpenLive: () -> Unit,
 ) {
     val context = LocalContext.current
     val capture by viewModel.capture.collectAsState()
@@ -182,6 +184,12 @@ fun MainScreen(
                     title = { Text(stringResource(R.string.app_name)) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     actions = {
+                        IconButton(onClick = onOpenLive) {
+                            Icon(
+                                Icons.Rounded.Translate,
+                                contentDescription = stringResource(R.string.cd_live),
+                            )
+                        }
                         IconButton(onClick = onOpenGames) {
                             Icon(Icons.Rounded.Casino, contentDescription = stringResource(R.string.cd_games))
                         }

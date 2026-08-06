@@ -33,6 +33,28 @@ data class ProviderConfig(
     val asrModel: String,
 )
 
+/**
+ * Настройки живого перевода.
+ *
+ * Три модели вместо одной: потоковой модели «звук → перевод» у провайдеров нет,
+ * поэтому распознавание, перевод и озвучка настраиваются по отдельности. Пустая
+ * [ttsModel] означает «без озвучки» — перевод останется бегущим текстом.
+ */
+data class LiveConfig(
+    val sttProvider: String,
+    val sttModel: String,
+    val translateProvider: String,
+    val translateModel: String,
+    val ttsProvider: String,
+    val ttsModel: String,
+    val ttsVoice: String,
+    val sessionLimitMinutes: Int,
+) {
+    companion object {
+        val EMPTY = LiveConfig("", "", "", "", "", "", "", 10)
+    }
+}
+
 data class StyleConfig(val id: String, val name: String, val prompt: String)
 
 data class LanguageConfig(val code: String, val name: String)
@@ -47,6 +69,7 @@ data class AdminConfig(
     val activeProvider: String,
     val providers: List<ProviderConfig>,
     val asrProvider: String,
+    val live: LiveConfig,
     val basePrompt: String,
     val styles: List<StyleConfig>,
     val languages: List<LanguageConfig>,
@@ -89,6 +112,15 @@ data class AdminConfig(
             .put("providers", provs)
             // Модель распознавания ушла в карточку провайдера — здесь только кто распознаёт.
             .put("asr", JSONObject().put("provider", asrProvider))
+            .put("live", (root.optJSONObject("live") ?: JSONObject())
+                .put("stt_provider", live.sttProvider)
+                .put("stt_model", live.sttModel)
+                .put("translate_provider", live.translateProvider)
+                .put("translate_model", live.translateModel)
+                .put("tts_provider", live.ttsProvider)
+                .put("tts_model", live.ttsModel)
+                .put("tts_voice", live.ttsVoice)
+                .put("session_limit_minutes", live.sessionLimitMinutes))
             .put("base_prompt", basePrompt)
             .put("styles", stylesArr)
             .put("languages", langsArr)
@@ -116,11 +148,22 @@ data class AdminConfig(
             }.sortedBy { it.key }.toList()
 
             val asr = root.optJSONObject("asr") ?: JSONObject()
+            val liveObj = root.optJSONObject("live") ?: JSONObject()
 
             return AdminConfig(
                 activeProvider = root.optString("active_provider"),
                 providers = providers,
                 asrProvider = asr.optString("provider"),
+                live = LiveConfig(
+                    sttProvider = liveObj.optString("stt_provider"),
+                    sttModel = liveObj.optString("stt_model"),
+                    translateProvider = liveObj.optString("translate_provider"),
+                    translateModel = liveObj.optString("translate_model"),
+                    ttsProvider = liveObj.optString("tts_provider"),
+                    ttsModel = liveObj.optString("tts_model"),
+                    ttsVoice = liveObj.optString("tts_voice"),
+                    sessionLimitMinutes = liveObj.optInt("session_limit_minutes", 10),
+                ),
                 basePrompt = root.optString("base_prompt"),
                 styles = root.optJSONArray("styles").mapObjects {
                     StyleConfig(it.optString("id"), it.optString("name"), it.optString("prompt"))

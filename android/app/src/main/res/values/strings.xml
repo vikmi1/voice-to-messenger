@@ -66,6 +66,8 @@
     <string name="lang_ru">Русский</string>
     <string name="lang_de">Немецкий</string>
     <string name="lang_en">Английский</string>
+    <string name="lang_it">Итальянский</string>
+    <string name="lang_zh">Китайский</string>
 
     <string name="raw_show">Показать исходный текст</string>
     <string name="raw_hide">Скрыть исходный текст</string>
@@ -142,6 +144,30 @@
 
     <!-- Игры: экран выбора -->
     <string name="cd_games">Игры</string>
+    <string name="cd_live">Живой перевод</string>
+
+    <!-- Живой перевод -->
+    <string name="live_title">Живой перевод</string>
+    <string name="live_translate_to">Переводить на</string>
+    <string name="live_speak_on">Озвучка включена</string>
+    <string name="live_speak_off">Озвучка выключена</string>
+    <string name="live_no_headset">Наушники не подключены: во время озвучки микрофон не слушает</string>
+    <string name="live_empty">Нажми микрофон и дай послушать говорящего. Язык определится сам.</string>
+    <string name="live_waiting">Слушаю…</string>
+    <string name="live_translating">Перевожу…</string>
+    <string name="live_start">Начать перевод</string>
+    <string name="live_stop">Остановить</string>
+    <string name="live_idle">Микрофон выключен</string>
+    <string name="live_connecting">Подключаюсь…</string>
+    <string name="live_finishing">Договариваю последнюю фразу…</string>
+    <string name="live_hearing">Слышу речь</string>
+    <string name="live_silence">Тишина — не трачу</string>
+    <string name="live_speaking">Проговариваю перевод</string>
+    <string name="live_detected">Говорят на %1$s</string>
+    <string name="live_credits">%1$d кредитов</string>
+    <string name="live_limit_reached">Время сессии вышло — перевод остановлен</string>
+    <string name="err_live_connection">Не удалось открыть живой перевод</string>
+    <string name="err_live_mic">Микрофон недоступен</string>
     <string name="games_title">Игры</string>
     <string name="game_2048_name">2048</string>
     <string name="schulte_name">Таблицы Шульте</string>

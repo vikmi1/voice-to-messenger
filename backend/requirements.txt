@@ -1,3 +1,6 @@
 Flask>=3.0
 requests>=2.31
 python-dotenv>=1.0
+# Живой перевод: WebSocket к приложению (flask-sock) и к Voxtral Realtime (websockets).
+flask-sock>=0.7
+websockets>=13.0

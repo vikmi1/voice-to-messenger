@@ -79,6 +79,69 @@ def _parse_usage(usage: dict) -> dict:
     }
 
 
+class Completion(NamedTuple):
+    text: str
+    #: Расход в наших полях (см. [_parse_usage]); пусто, если провайдер промолчал.
+    usage: dict
+
+
+def complete(base_url: str, api_key: str, model: str, system: str, user: str,
+             temperature: float = 0.2, timeout: int = 60) -> Completion:
+    """Ответ целиком, без стриминга — для коротких служебных запросов.
+
+    Живому переводу поток не нужен: фраза отдаётся в наушник и на экран целиком,
+    а один HTTP-запрос вместо разбора SSE проще и на пару десятков миллисекунд быстрее.
+    """
+    if not api_key:
+        raise RuntimeError("Не задан API-ключ провайдера.")
+
+    url = f"{(base_url or '').rstrip('/')}/chat/completions"
+    payload = {
+        "model": model,
+        "temperature": temperature,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload, timeout=timeout,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"{resp.status_code}: {resp.text[:300]}")
+    body = resp.json()
+    choices = body.get("choices") or [{}]
+    text = ((choices[0].get("message") or {}).get("content") or "").strip()
+    return Completion(text, _parse_usage(body.get("usage") or {}))
+
+
+def synthesize_speech(base_url: str, api_key: str, model: str, text: str,
+                      voice: str = "", response_format: str = "mp3",
+                      timeout: int = 60) -> bytes:
+    """Текст → аудио через `/audio/speech`. Возвращает готовый файл байтами.
+
+    mp3, а не сырой PCM: приложению не нужно знать частоту дискретизации синтеза —
+    оно просто отдаёт файл системному плееру.
+    """
+    if not api_key:
+        raise RuntimeError("Не задан API-ключ провайдера озвучки.")
+
+    payload = {"model": model, "input": text, "response_format": response_format}
+    if voice:
+        payload["voice_id"] = voice
+
+    resp = requests.post(
+        f"{(base_url or '').rstrip('/')}/audio/speech",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload, timeout=timeout,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"{resp.status_code}: {resp.text[:300]}")
+    return resp.content
+
+
 def list_models(base_url: str, api_key: str) -> list[str]:
     """Список моделей провайдера (GET /models) — для выпадающего списка в панели."""
     if not api_key:

@@ -83,6 +83,14 @@ CATALOG = [
              "price": "$0.003 / мин", "note": "Voxtral Mini Transcribe 2, 13 языков"},
             {"id": "voxtral-small-latest", "tier": BALANCED, "per_min": 0.004,
              "price": "$0.004 / мин", "note": "крупнее, понимает контекст"},
+            {"id": "voxtral-mini-transcribe-realtime-2602", "tier": BALANCED, "per_min": 0.006,
+             "price": "$0.006 / мин", "note": "потоковая, для живого перевода; язык определяет сама"},
+        ],
+        # Синтез речи. Тарифицируется по символам, а не по минутам, поэтому список
+        # отдельный от asr: `per_1m_chars` — цена за миллион символов входного текста.
+        "tts": [
+            {"id": "voxtral-mini-tts-2603", "tier": BALANCED, "per_1m_chars": 16.0,
+             "price": "$0.016 / 1000 символов", "note": "Voxtral TTS, 9 языков"},
         ],
     },
     {
@@ -109,7 +117,7 @@ def for_base_url(base_url: str) -> dict:
     for entry in CATALOG:
         if entry["match"] in url:
             return entry
-    return {"llm": [], "asr": []}
+    return {"llm": [], "asr": [], "tts": []}
 
 
 def default_asr_model(base_url: str) -> str:
@@ -152,6 +160,29 @@ def asr_cost_usd(base_url: str, model: str, seconds: float | None) -> float | No
     if not entry or not seconds:
         return None
     return seconds / 60 * entry["per_min"]
+
+
+def tts_cost_usd(base_url: str, model: str, chars: int | None) -> float | None:
+    """Стоимость синтеза речи в долларах. None — если модели нет в каталоге."""
+    entry = _find(base_url, "tts", model)
+    if not entry or not chars:
+        return None
+    return chars / 1_000_000 * entry["per_1m_chars"]
+
+
+def default_live_models(base_url: str) -> dict:
+    """Рекомендуемые модели живого перевода для провайдера с таким адресом.
+
+    Realtime-распознавание есть только у Mistral, поэтому для остальных вернётся
+    пусто — и админ-панель честно покажет, что живой перевод не настроен.
+    """
+    entry = for_base_url(base_url)
+    realtime = next((m for m in entry.get("asr") or [] if "realtime" in m["id"]), None)
+    tts = (entry.get("tts") or [None])[0]
+    return {
+        "stt_model": realtime["id"] if realtime else "",
+        "tts_model": tts["id"] if tts else "",
+    }
 
 
 def credits(usd: float | None) -> int | None:

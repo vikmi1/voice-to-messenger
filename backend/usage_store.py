@@ -40,7 +40,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage (
     id TEXT PRIMARY KEY,
     ts TEXT NOT NULL,
-    op TEXT NOT NULL,                 -- 'process' | 'transcribe'
+    op TEXT NOT NULL,                 -- 'process' | 'transcribe' | 'test'
+                                      -- живой перевод: 'live_stt' | 'live_translate' | 'live_tts'
     provider TEXT NOT NULL,
     base_url TEXT NOT NULL,
     model TEXT NOT NULL,
@@ -51,7 +52,8 @@ CREATE TABLE IF NOT EXISTS usage (
     cache_write_tokens INTEGER DEFAULT 0,
     audio_bytes INTEGER DEFAULT 0,
     audio_seconds REAL,
-    audio_seconds_source TEXT,        -- 'provider' | 'estimate'
+    audio_seconds_source TEXT,        -- 'provider' | 'container' | 'estimate' | 'stream'
+    chars INTEGER DEFAULT 0,          -- символы синтеза речи: озвучка тарифицируется по ним
     style TEXT,
     target_lang TEXT,
     ok INTEGER NOT NULL DEFAULT 1,
@@ -73,6 +75,11 @@ def init_db() -> None:
         # WAL: писатель не блокирует читателей — вкладка расхода открывается во время диктовки.
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SCHEMA)
+        # Колонки, появившиеся позже: у боевой базы таблица уже создана, и CREATE TABLE
+        # выше её не тронет.
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(usage)")}
+        if "chars" not in existing:
+            conn.execute("ALTER TABLE usage ADD COLUMN chars INTEGER DEFAULT 0")
 
 
 def estimate_seconds(audio_bytes: int) -> float:
@@ -85,7 +92,7 @@ def record(**row) -> None:
     fields = (
         "id", "ts", "op", "provider", "base_url", "model", "tier",
         "input_tokens", "output_tokens", "cached_tokens", "cache_write_tokens",
-        "audio_bytes", "audio_seconds", "audio_seconds_source",
+        "audio_bytes", "audio_seconds", "audio_seconds_source", "chars",
         "style", "target_lang", "ok", "error",
     )
     row.setdefault("ts", datetime.now(timezone.utc).isoformat(timespec="seconds"))
@@ -105,8 +112,10 @@ def record(**row) -> None:
 def _priced(row: sqlite3.Row) -> dict:
     """Строка из базы + посчитанная по текущему каталогу стоимость."""
     item = dict(row)
-    if item["op"] == "transcribe":
+    if item["op"] in ("transcribe", "live_stt"):
         usd = catalog.asr_cost_usd(item["base_url"], item["model"], item["audio_seconds"])
+    elif item["op"] == "live_tts":
+        usd = catalog.tts_cost_usd(item["base_url"], item["model"], item["chars"])
     else:
         usd = catalog.llm_cost_usd(
             item["base_url"], item["model"],

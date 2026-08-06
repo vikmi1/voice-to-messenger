@@ -5,6 +5,7 @@
   POST /api/process       — текст → чистое сообщение (стриминг), Bearer-токен
   GET  /api/options       — стили и языки для приложения, Bearer-токен
   POST /api/transcribe    — аудио → сырой текст (Whisper), Bearer-токен
+  WS   /api/live          — живой перевод: PCM с микрофона → текст и озвучка, Bearer-токен
   GET  /api/usage/<id>    — расход конкретного запроса, Bearer-токен
   GET  /admin             — админ-панель (Basic Auth)
   GET  /admin/api/config  — текущая конфигурация (админ-доступ)
@@ -18,16 +19,19 @@
 """
 
 import functools
+import json
 import os
 import secrets
 import uuid
 
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
+from flask_sock import Sock
 
 import audio_meta
 import catalog
 import config_store
+import live_translate
 import usage_store
 from prompts import build_system
 from providers import anthropic as anthropic_provider
@@ -42,6 +46,12 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "changeme")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-insecure-key")
+
+# Живой перевод держит соединение открытым всю сессию, а в тишине приложение может
+# долго не слать ни байта. Пинги подтверждают, что связь жива, и не дают прокси
+# (Caddy, мобильный оператор) закрыть «простаивающее» соединение.
+app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
+sock = Sock(app)
 
 config_store.init_db()
 usage_store.init_db()
@@ -287,6 +297,61 @@ def api_transcribe():
 
     app.logger.info("transcribe ok: %d chars", len(result.text))
     return jsonify(text=result.text, usage_id=usage_id)
+
+
+@sock.route("/api/live")
+def api_live(ws):
+    """Живой перевод: приложение льёт сюда PCM, обратно идут текст и озвучка.
+
+    Токен проверяем руками, а не декоратором [require_token]: у WebSocket нет
+    HTTP-ответа, которым можно отказать, — об отказе сообщаем сообщением в сокете.
+    Соединение занимает поток воркера на всю сессию (их 8: 2 воркера × 4 потока),
+    поэтому потолок длины сессии — не только про деньги.
+    """
+    def fail(message: str) -> None:
+        # Пробуем сказать причину; если сокет уже мёртв, молча закрываемся.
+        try:
+            ws.send(json.dumps({"type": "error", "message": message}, ensure_ascii=False))
+        except Exception:  # noqa: BLE001
+            pass
+
+    cfg = config_store.load()
+    header = request.headers.get("Authorization", "")
+    token = header[7:] if header.startswith("Bearer ") else ""
+    if not cfg.get("api_token") or token != cfg["api_token"]:
+        fail("unauthorized")
+        return
+
+    try:
+        parts = live_translate.resolve(cfg, resolve_api_key)
+    except live_translate.LiveConfigError as exc:
+        fail(str(exc))
+        return
+
+    # Первым сообщением приложение говорит, на какой язык переводить и нужна ли
+    # озвучка. Без него не начинаем: язык — обязательный параметр перевода.
+    try:
+        hello = json.loads(ws.receive(timeout=30) or "{}")
+    except Exception:  # noqa: BLE001 — молчание или мусор вместо стартового кадра
+        fail("Не пришли параметры сессии")
+        return
+    if hello.get("type") != "start":
+        fail("Первым сообщением должен быть start")
+        return
+
+    session_id = uuid.uuid4().hex
+    app.logger.info(
+        "live: session=%s lang=%s speak=%s stt=%s/%s translate=%s/%s",
+        session_id, hello.get("target_lang"), hello.get("speak"),
+        parts["stt"]["provider"], parts["stt"]["model"],
+        parts["translate"]["provider"], parts["translate"]["model"],
+    )
+    live_translate.serve(
+        ws, parts, session_id,
+        target_lang=hello.get("target_lang") or "ru",
+        speak=bool(hello.get("speak")),
+    )
+    app.logger.info("live: session=%s closed", session_id)
 
 
 # --- Админ-панель ----------------------------------------------------------

@@ -15,6 +15,7 @@ private object Routes {
     const val SETTINGS = "settings"
     const val ADMIN = "admin"
     const val GAMES = "games"
+    const val LIVE = "live"
     const val GAME_2048 = "game_2048"
     const val SCHULTE = "schulte"
     const val STROOP = "stroop"
@@ -32,6 +33,15 @@ fun AppRoot(viewModel: MainViewModel) {
                     onOpenNotes = { navController.navigate(Routes.NOTES) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenGames = { navController.navigate(Routes.GAMES) },
+                    onOpenLive = { navController.navigate(Routes.LIVE) },
+                )
+            }
+            composable(Routes.LIVE) {
+                // Своя ViewModel: сессия живого перевода обязана умереть вместе с экраном,
+                // иначе микрофон и счётчик расхода остались бы работать в фоне.
+                LiveScreen(
+                    viewModel = viewModel(factory = LiveViewModel.Factory),
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.NOTES) {

@@ -10,6 +10,7 @@ import com.voicetomessenger.data.NotesRepository
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.net.AdminClient
 import com.voicetomessenger.net.BackendClient
+import com.voicetomessenger.net.LiveTranslateClient
 import com.voicetomessenger.sound.SoundEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,9 @@ class AppContainer(context: Context) {
     val settings = SettingsRepository(appContext)
     val backend = BackendClient(settings, appContext)
     val admin = AdminClient(settings)
+
+    /** Живой перевод. Отдельный клиент: у него своё соединение и свои таймауты. */
+    val liveTranslate = LiveTranslateClient(settings, appContext)
     val notes = NotesRepository(AppDatabase.get(appContext).noteDao())
 
     /** Синтезированные звуки игр. Флаг [SoundEngine.enabled] следует за настройкой звука. */

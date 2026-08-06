@@ -70,6 +70,7 @@
   <div class="tabs">
     <button data-tab="providers" class="active">Провайдеры</button>
     <button data-tab="asr">Распознавание</button>
+    <button data-tab="live">Живой перевод</button>
     <button data-tab="prompt">Системный промпт</button>
     <button data-tab="styles">Стили</button>
     <button data-tab="languages">Языки</button>
@@ -101,6 +102,61 @@
       <p class="muted" style="margin-top:10px;">Модель распознавания задаётся в карточке
         самого провайдера на вкладке «Провайдеры»: у каждого она своя (<code>whisper-1</code>
         у Mistral не существует, <code>voxtral</code> у OpenAI — тоже).</p>
+    </div>
+  </div>
+
+  <div id="live" class="panel">
+    <div class="card">
+      <p class="muted">Экран живого перевода в приложении: микрофон слушает говорящего,
+        язык определяется автоматически, перевод идёт текстом и (если задана озвучка)
+        голосом в наушник. Одной модели на всё у провайдеров нет, поэтому здесь три:
+        потоковое распознавание, перевод и синтез речи.</p>
+      <div class="row">
+        <div>
+          <label>Распознавание — провайдер</label>
+          <select id="live_stt_provider"></select>
+        </div>
+        <div>
+          <label>Модель потокового распознавания</label>
+          <input id="live_stt_model" placeholder="voxtral-mini-transcribe-realtime-2602">
+          <p class="muted">Нужен WebSocket-эндпоинт <code>/audio/transcriptions/realtime</code>.
+            На 06.08.2026 он есть только у Mistral.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Перевод — провайдер</label>
+          <select id="live_translate_provider"></select>
+        </div>
+        <div>
+          <label>Модель перевода</label>
+          <input id="live_translate_model" placeholder="mistral-small-latest">
+          <p class="muted">Вызывается на каждую фразу — держи здесь дешёвую и быструю
+            модель, флагман тут только замедлит и подорожает.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Озвучка — провайдер</label>
+          <select id="live_tts_provider"></select>
+        </div>
+        <div>
+          <label>Модель синтеза речи (пусто — без озвучки)</label>
+          <input id="live_tts_model" placeholder="voxtral-mini-tts-2603">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Голос (пусто — голос провайдера по умолчанию)</label>
+          <input id="live_tts_voice" placeholder="">
+        </div>
+        <div>
+          <label>Предел одной сессии, минут</label>
+          <input id="live_limit" type="number" min="1" max="120">
+          <p class="muted">Забытый включённым микрофон тратит деньги молча — по истечении
+            этого времени сессия закрывается сама.</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -267,6 +323,14 @@ function render() {
   document.getElementById("test_style").innerHTML = CFG.styles.map(s => opt(s.id, s.name)).join("");
   document.getElementById("test_lang").innerHTML = CFG.languages.map(l => opt(l.code, l.name)).join("");
 
+  // Живой перевод
+  const live = CFG.live || {};
+  document.getElementById("live_stt_model").value = live.stt_model || "";
+  document.getElementById("live_translate_model").value = live.translate_model || "";
+  document.getElementById("live_tts_model").value = live.tts_model || "";
+  document.getElementById("live_tts_voice").value = live.tts_voice || "";
+  document.getElementById("live_limit").value = live.session_limit_minutes ?? 10;
+
   // Приложение
   document.getElementById("api_token").value = CFG.api_token || "";
   document.getElementById("admin_token").value = CFG.admin_token || "";
@@ -280,6 +344,11 @@ function refreshProviderSelects() {
     ["active_provider", CFG.active_provider, keys],
     ["asr_provider", CFG.asr?.provider, asrKeys],
     ["test_provider", CFG.active_provider, keys],
+    // Живой перевод: распознавание и озвучка идут по OpenAI-совместимым эндпоинтам,
+    // которых у Anthropic нет, — предлагаем только тех, кто их умеет.
+    ["live_stt_provider", CFG.live?.stt_provider, asrKeys],
+    ["live_translate_provider", CFG.live?.translate_provider, keys],
+    ["live_tts_provider", CFG.live?.tts_provider, asrKeys],
   ]) {
     // Если сохранённый провайдер выпал из списка (сменили тип API) — берём первый доступный.
     const selected = allowed.includes(cur) ? cur : allowed[0];
@@ -621,6 +690,16 @@ function collect() {
     providers,
     // Модель распознавания лежит в карточке провайдера, здесь — только кто распознаёт.
     asr: { provider: document.getElementById("asr_provider").value },
+    live: {
+      stt_provider: document.getElementById("live_stt_provider").value,
+      stt_model: document.getElementById("live_stt_model").value.trim(),
+      translate_provider: document.getElementById("live_translate_provider").value,
+      translate_model: document.getElementById("live_translate_model").value.trim(),
+      tts_provider: document.getElementById("live_tts_provider").value,
+      tts_model: document.getElementById("live_tts_model").value.trim(),
+      tts_voice: document.getElementById("live_tts_voice").value.trim(),
+      session_limit_minutes: Number(document.getElementById("live_limit").value) || 10,
+    },
     base_prompt: document.getElementById("base_prompt").value,
     styles,
     languages,

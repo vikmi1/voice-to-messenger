@@ -64,6 +64,8 @@
     <string name="lang_ru">Russisch</string>
     <string name="lang_de">Deutsch</string>
     <string name="lang_en">Englisch</string>
+    <string name="lang_it">Italienisch</string>
+    <string name="lang_zh">Chinesisch</string>
 
     <string name="raw_show">Originaltext anzeigen</string>
     <string name="raw_hide">Originaltext ausblenden</string>
@@ -137,6 +139,30 @@
 
     <!-- Spiele: Auswahlbildschirm -->
     <string name="cd_games">Spiele</string>
+    <string name="cd_live">Live-Übersetzung</string>
+
+    <!-- Live-Übersetzung -->
+    <string name="live_title">Live-Übersetzung</string>
+    <string name="live_translate_to">Übersetzen nach</string>
+    <string name="live_speak_on">Sprachausgabe an</string>
+    <string name="live_speak_off">Sprachausgabe aus</string>
+    <string name="live_no_headset">Keine Kopfhörer: Während der Sprachausgabe hört das Mikrofon nicht zu</string>
+    <string name="live_empty">Tippe auf das Mikrofon und lass es zuhören. Die Sprache wird automatisch erkannt.</string>
+    <string name="live_waiting">Höre zu…</string>
+    <string name="live_translating">Übersetze…</string>
+    <string name="live_start">Übersetzung starten</string>
+    <string name="live_stop">Stoppen</string>
+    <string name="live_idle">Mikrofon aus</string>
+    <string name="live_connecting">Verbinde…</string>
+    <string name="live_finishing">Letzter Satz wird beendet…</string>
+    <string name="live_hearing">Sprache erkannt</string>
+    <string name="live_silence">Stille — keine Kosten</string>
+    <string name="live_speaking">Übersetzung wird gesprochen</string>
+    <string name="live_detected">Sprecher: %1$s</string>
+    <string name="live_credits">%1$d Credits</string>
+    <string name="live_limit_reached">Sitzungszeit abgelaufen — Übersetzung gestoppt</string>
+    <string name="err_live_connection">Live-Übersetzung konnte nicht gestartet werden</string>
+    <string name="err_live_mic">Mikrofon nicht verfügbar</string>
     <string name="games_title">Spiele</string>
     <string name="game_2048_name">2048</string>
     <string name="schulte_name">Schulte-Tabellen</string>

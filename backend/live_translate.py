@@ -210,8 +210,9 @@ class _Assembler:
     перевод дважды.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, silence_s: float = _UNIT_SILENCE_S) -> None:
         self.buffer = ""
+        self.silence_s = silence_s
         self.updated_at = time.monotonic()
 
     def add(self, text: str) -> str | None:
@@ -231,7 +232,7 @@ class _Assembler:
         """Кусок, закрытый паузой: говорящий замолчал, ждать точку больше незачем."""
         if not self.buffer.strip():
             return None
-        if time.monotonic() - self.updated_at < _UNIT_SILENCE_S:
+        if time.monotonic() - self.updated_at < self.silence_s:
             return None
         return self.take()
 
@@ -699,6 +700,14 @@ _SILENT_PEAK = 32
 #: 8 порций по 0.4 с — хвост последней фразы приезжает заметно раньше.
 _TAIL_SILENT_CHUNKS = 8
 
+#: Пауза, закрывающая фразу в режиме одной модели.
+#:
+#: 5 секунд, а не 1.8: эта модель отдаёт перевод не по мере распознавания, а вместе со
+#: своей озвучкой, то есть с отставанием и с провалами в пару секунд посреди фразы. На
+#: коротком пороге лента резалась на обрывки («Это» | «вторая фраза: вы всё ещё меня
+#: слышите?»). Главный ориентир здесь — знаки препинания, их модель ставит сама.
+_SOLO_UNIT_SILENCE_S = 5.0
+
 
 class SoloBridge(Bridge):
     """Живой перевод одной моделью — диалект OpenAI (`gpt-realtime-translate`).
@@ -730,6 +739,7 @@ class SoloBridge(Bridge):
         super().__init__(client, parts, session_id, target_lang, speak)
         # Модель озвучивает всегда; тумблер в приложении решает только, слать ли звук ему.
         self.speak = self.speak_requested
+        self.assembler = _Assembler(_SOLO_UNIT_SILENCE_S)
         self._resample_state = None
         self._silent_run = 0
 

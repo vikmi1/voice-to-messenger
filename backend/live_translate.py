@@ -58,6 +58,15 @@ _BYTES_PER_SECOND = SAMPLE_RATE * 2  # 16 бит моно
 #: Меньше — перевод дробится на обрывки, больше — растёт отставание от говорящего.
 _UNIT_SILENCE_S = 1.2
 
+#: Сколько ждать после последнего звука речи, прежде чем поверить, что говорящий замолчал.
+#:
+#: Одного таймера по тексту мало: распознавание отдаёт слова с задержкой, и на его
+#: паузе фраза резалась посередине («…and I am very glad to» | «meet you today») —
+#: перевод такого куска выходит корявым. Приложение шлёт звук только пока слышит речь
+#: (ворота тишины на устройстве), поэтому «давно не было звука» — надёжный признак
+#: настоящей паузы, а не задумавшейся модели.
+_VOICE_TAIL_S = 0.8
+
 #: Длина, после которой кусок отдаём на перевод, не дожидаясь точки: иначе на
 #: безостановочной речи перевод не появится вовсе.
 _UNIT_MAX_CHARS = 220
@@ -527,6 +536,9 @@ class Bridge:
         """Аудио и команды приложения → распознавание."""
         last_credits = time.monotonic()
         last_audio = time.monotonic()
+        # Отдельно от last_audio: тот сдвигает и служебная тишина keepalive, а здесь
+        # нужен именно последний звук живой речи.
+        last_voice = time.monotonic()
         while not self.stopping:
             try:
                 message = await asyncio.wait_for(inbox.get(), timeout=0.3)
@@ -539,15 +551,17 @@ class Bridge:
             if message is not _NOTHING:
                 if isinstance(message, (bytes, bytearray)):
                     self.ledger.audio_bytes += len(message)
-                    last_audio = time.monotonic()
+                    last_audio = last_voice = time.monotonic()
                     await self._append_audio(upstream, bytes(message))
                 elif not self._on_command(message):
                     return
 
             # Пауза в речи закрывает фразу: ждать точку от молчащего смысла нет.
-            unit = self.assembler.due_by_silence()
-            if unit:
-                self._queue_unit(unit)
+            # Но только если говорящий и правда замолчал — см. [_VOICE_TAIL_S].
+            if time.monotonic() - last_voice >= _VOICE_TAIL_S:
+                unit = self.assembler.due_by_silence()
+                if unit:
+                    self._queue_unit(unit)
 
             now = time.monotonic()
 

@@ -151,8 +151,20 @@ def resolve(cfg: dict, api_key_for) -> dict:
     if tts and voices.supports_instructions(tts["base_url"]):
         instructions = voices.instructions_for(live.get("tts_mood") or "")
 
+    stt = part("stt", "stt_model")
+    # Эндпоинт `/audio/transcriptions/realtime` есть не у всех: у OpenAI потоковое
+    # распознавание живёт по другому адресу и говорит на другом протоколе, и попытка
+    # подключиться к нему заканчивается невнятным «HTTP 503» из их шлюза.
+    if catalog.has_realtime_asr(stt["base_url"]) is False:
+        raise LiveConfigError(
+            f"У провайдера «{stt['provider']}» нет потокового распознавания: "
+            "WebSocket /audio/transcriptions/realtime на 06.08.2026 есть только у Mistral. "
+            "Открой админ-панель → «Живой перевод» и выбери Mistral для распознавания "
+            "(перевод и озвучку можно оставить любые).",
+        )
+
     return {
-        "stt": part("stt", "stt_model"),
+        "stt": stt,
         "translate": part("translate", "translate_model"),
         "tts": tts,
         # strip: голос нередко попадает в настройки копипастом с пробелом по краям,
@@ -437,6 +449,11 @@ class Bridge:
             message = detail.get("message") if isinstance(detail, dict) else str(detail)
             self.error = str(message or "ошибка распознавания")
             self._send({"type": "error", "message": self.error})
+            # После своей ошибки распознавание рвёт связь с моделью, но сокет ещё
+            # открыт. Если продолжать лить в него звук, настоящая причина теряется:
+            # человек видит не «Cannot flush audio…», а «1011 Upstream connection
+            # error» от следующей отправки. Останавливаемся сразу.
+            self.stopping = True
             return False
 
         return True
@@ -502,7 +519,13 @@ class Bridge:
             raise
         except Exception as exc:  # noqa: BLE001 — показываем причину в приложении
             self.error = str(exc)
-            log.error("live session failed: %s", exc, exc_info=True)
+            # Секунды и аудио в строке — чтобы по логу отличать обрыв на рукопожатии
+            # (звука ещё не было) от обрыва посреди речи: причины у них разные.
+            log.error(
+                "live session failed after %.1f s, %.1f s of audio, %d units: %s",
+                time.monotonic() - started, self.ledger.audio_seconds, self.unit_no, exc,
+                exc_info=True,
+            )
             self._send({"type": "error", "message": f"Распознавание недоступно: {exc}"})
         finally:
             self.stopping = True
@@ -543,7 +566,11 @@ class Bridge:
         # нужен именно последний звук живой речи.
         last_voice = time.monotonic()
         # Просили ли уже отдать хвост текущей фразы. Сбрасывается новой речью.
-        flushed = False
+        #
+        # True на старте, хотя ничего ещё не просили: между «сессия готова» и первым
+        # словом человека проходит больше _VOICE_TAIL_S, и с False мы просили бы
+        # распознавание дослать хвост пустого буфера — ещё до первой порции звука.
+        flushed = True
         while not self.stopping:
             try:
                 message = await asyncio.wait_for(inbox.get(), timeout=0.3)

@@ -192,6 +192,34 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     fun setLive(live: LiveConfig) = edit { it.copy(live = live) }
 
     /**
+     * Сменили провайдера потокового распознавания — подставляем и его модель.
+     *
+     * Раньше менялся только провайдер, а в поле модели оставалась чужая: с парой
+     * «OpenAI + voxtral-…-realtime» живой перевод падал не с внятным отказом, а с
+     * «HTTP 503» от шлюза OpenAI, по которому причину не угадать.
+     */
+    fun setLiveSttProvider(key: String) = setLiveProvider(key) { live, baseUrl ->
+        live.copy(
+            sttProvider = key,
+            sttModel = _state.value.catalog.realtimeAsrFor(baseUrl).firstOrNull()?.id.orEmpty(),
+        )
+    }
+
+    /** То же для перевода: mistral-small-latest у OpenAI не существует. */
+    fun setLiveTranslateProvider(key: String) = setLiveProvider(key) { live, baseUrl ->
+        live.copy(
+            translateProvider = key,
+            translateModel = _state.value.catalog.llmFor(baseUrl).firstOrNull()?.id.orEmpty(),
+        )
+    }
+
+    private fun setLiveProvider(key: String, change: (LiveConfig, String) -> LiveConfig) {
+        val draft = _state.value.draft ?: return
+        val baseUrl = draft.provider(key)?.baseUrl.orEmpty()
+        edit { it.copy(live = change(it.live, baseUrl)) }
+    }
+
+    /**
      * Сменили провайдера озвучки: старые голос и модель ему заведомо не принадлежат
      * (voxtral у OpenAI не существует, как и gpt-*-tts у Mistral), а оставшаяся чужая
      * пара даёт 400 при первой же озвученной фразе.

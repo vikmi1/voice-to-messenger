@@ -120,11 +120,13 @@
       <div class="row">
         <div>
           <label>Распознавание — провайдер</label>
-          <select id="live_stt_provider"></select>
+          <select id="live_stt_provider" onchange="onLiveSttProviderChange()"></select>
         </div>
         <div>
           <label>Модель потокового распознавания</label>
-          <input id="live_stt_model" placeholder="voxtral-mini-transcribe-realtime-2602">
+          <input id="live_stt_model" list="live_stt_models"
+                 placeholder="voxtral-mini-transcribe-realtime-2602">
+          <datalist id="live_stt_models"></datalist>
           <p class="muted">Нужен WebSocket-эндпоинт <code>/audio/transcriptions/realtime</code>.
             На 06.08.2026 он есть только у Mistral.</p>
         </div>
@@ -132,11 +134,13 @@
       <div class="row">
         <div>
           <label>Перевод — провайдер</label>
-          <select id="live_translate_provider"></select>
+          <select id="live_translate_provider" onchange="onLiveTranslateProviderChange()"></select>
         </div>
         <div>
           <label>Модель перевода</label>
-          <input id="live_translate_model" placeholder="mistral-small-latest">
+          <input id="live_translate_model" list="live_translate_models"
+                 placeholder="mistral-small-latest">
+          <datalist id="live_translate_models"></datalist>
           <p class="muted">Вызывается на каждую фразу — держи здесь дешёвую и быструю
             модель, флагман тут только замедлит и подорожает.</p>
         </div>
@@ -148,7 +152,8 @@
         </div>
         <div>
           <label>Модель синтеза речи (пусто — без озвучки)</label>
-          <input id="live_tts_model" placeholder="voxtral-mini-tts-2603">
+          <input id="live_tts_model" list="live_tts_models" placeholder="voxtral-mini-tts-2603">
+          <datalist id="live_tts_models"></datalist>
         </div>
       </div>
       <div class="card" style="background:rgba(0,0,0,.02);">
@@ -376,7 +381,51 @@ function onTtsProviderChange() {
   document.getElementById("live_tts_voice").value = "";
   document.getElementById("live_tts_model").value = (catalogFor(url).tts || [])[0]?.id || "";
   VOICE_UI = { gender: null, name: null };
+  fillLiveModelLists();
   loadVoices();
+}
+
+/**
+ * Сменили провайдера потокового распознавания — подставляем и его модель.
+ *
+ * Раньше менялся только провайдер, а в поле оставалась чужая модель: пара
+ * «OpenAI + voxtral-…-realtime» падала не с внятным отказом, а с «HTTP 503»
+ * от шлюза OpenAI, по которому причину не угадать.
+ */
+function onLiveSttProviderChange() {
+  const url = liveBaseUrl("live_stt_provider");
+  document.getElementById("live_stt_model").value = realtimeAsr(url)[0]?.id || "";
+  fillLiveModelLists();
+}
+
+/** То же для перевода: mistral-small-latest у OpenAI не существует. */
+function onLiveTranslateProviderChange() {
+  const url = liveBaseUrl("live_translate_provider");
+  document.getElementById("live_translate_model").value = (catalogFor(url).llm || [])[0]?.id || "";
+  fillLiveModelLists();
+}
+
+function liveBaseUrl(selectId) {
+  return CFG.providers[document.getElementById(selectId).value]?.base_url || "";
+}
+
+/**
+ * Модели потокового распознавания. Обычная транскрипция сюда не попадает
+ * намеренно: по WebSocket она не работает, а выбранная по ошибке даёт не отказ,
+ * а невнятную ошибку шлюза уже во время разговора.
+ */
+function realtimeAsr(baseUrl) {
+  return (catalogFor(baseUrl).asr || []).filter(m => m.id.includes("realtime"));
+}
+
+/** Выпадашки трёх полей живого перевода — каждая по адресу своего провайдера. */
+function fillLiveModelLists() {
+  fillList(document.getElementById("live_stt_models"),
+           realtimeAsr(liveBaseUrl("live_stt_provider")), null);
+  fillList(document.getElementById("live_translate_models"),
+           catalogFor(liveBaseUrl("live_translate_provider")).llm || [], null);
+  fillList(document.getElementById("live_tts_models"),
+           catalogFor(liveBaseUrl("live_tts_provider")).tts || [], null);
 }
 
 async function loadVoices() {
@@ -514,6 +563,9 @@ function refreshProviderSelects() {
       `<option value="${esc(k)}" ${k === selected ? "selected" : ""}>${esc(CFG.providers[k].label || k)}</option>`
     ).join("");
   }
+  // Подсказки моделей живого перевода зависят от выбранных провайдеров — обновляем
+  // здесь, а не в render(): списки пересобираются и при смене типа API.
+  fillLiveModelLists();
 }
 
 function providerCard(key, p) {

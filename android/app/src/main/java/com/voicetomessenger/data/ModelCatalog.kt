@@ -36,6 +36,16 @@ data class ModelCatalog(
     /** Модели распознавания речи у провайдера с таким адресом API. */
     fun asrFor(baseUrl: String): List<CatalogModel> = entryFor(baseUrl)?.asr.orEmpty()
 
+    /**
+     * Модели потокового распознавания — только они годятся для живого перевода.
+     *
+     * Признак — «realtime» в имени. Обычная модель транскрипции в этот список не
+     * попадает намеренно: по WebSocket она не работает, а выбранная по ошибке даёт
+     * не отказ, а невнятную ошибку шлюза уже во время разговора.
+     */
+    fun realtimeAsrFor(baseUrl: String): List<CatalogModel> =
+        asrFor(baseUrl).filter { "realtime" in it.id }
+
     /** Модели синтеза речи у провайдера с таким адресом API. */
     fun tts(baseUrl: String): List<CatalogModel> = entryFor(baseUrl)?.tts.orEmpty()
 

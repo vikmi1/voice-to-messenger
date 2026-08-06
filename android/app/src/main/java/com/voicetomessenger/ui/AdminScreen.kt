@@ -486,17 +486,21 @@ private fun LiveTab(state: AdminUiState, draft: AdminConfig, viewModel: AdminVie
     ChipRow(
         options = openAiProviders,
         selected = live.sttProvider,
-        onSelect = { viewModel.setLive(live.copy(sttProvider = it)) },
+        onSelect = viewModel::setLiveSttProvider,
     )
-    OutlinedTextField(
-        value = live.sttModel,
-        onValueChange = { viewModel.setLive(live.copy(sttModel = it)) },
-        label = { Text("Модель распознавания") },
-        supportingText = {
-            Text("Нужен WebSocket /audio/transcriptions/realtime — на 06.08.2026 только у Mistral")
-        },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+    val sttUrl = draft.provider(live.sttProvider)?.baseUrl.orEmpty()
+    ModelField(
+        label = "Модель распознавания",
+        model = live.sttModel,
+        // Только realtime-модели: обычная транскрипция по WebSocket не работает.
+        suggestions = state.catalog.realtimeAsrFor(sttUrl),
+        tierTitle = state.catalog::tierTitle,
+        // Живой /models сюда не годится: он отдаёт всё вперемешку, а потоковых там единицы.
+        models = emptyList(),
+        loading = false,
+        onChange = { viewModel.setLive(live.copy(sttModel = it)) },
+        onLoadModels = null,
+        footnote = "Нужен WebSocket /audio/transcriptions/realtime — на 06.08.2026 только у Mistral",
     )
 
     HorizontalDivider()
@@ -505,17 +509,18 @@ private fun LiveTab(state: AdminUiState, draft: AdminConfig, viewModel: AdminVie
     ChipRow(
         options = allProviders,
         selected = live.translateProvider,
-        onSelect = { viewModel.setLive(live.copy(translateProvider = it)) },
+        onSelect = viewModel::setLiveTranslateProvider,
     )
-    OutlinedTextField(
-        value = live.translateModel,
-        onValueChange = { viewModel.setLive(live.copy(translateModel = it)) },
-        label = { Text("Модель перевода") },
-        supportingText = {
-            Text("Вызывается на каждую фразу — здесь нужна дешёвая и быстрая, а не флагман")
-        },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+    ModelField(
+        label = "Модель перевода",
+        model = live.translateModel,
+        suggestions = state.catalog.llmFor(draft.provider(live.translateProvider)?.baseUrl.orEmpty()),
+        tierTitle = state.catalog::tierTitle,
+        models = emptyList(),
+        loading = false,
+        onChange = { viewModel.setLive(live.copy(translateModel = it)) },
+        onLoadModels = null,
+        footnote = "Вызывается на каждую фразу — здесь нужна дешёвая и быстрая, а не флагман",
     )
 
     HorizontalDivider()
@@ -526,13 +531,16 @@ private fun LiveTab(state: AdminUiState, draft: AdminConfig, viewModel: AdminVie
         selected = live.ttsProvider,
         onSelect = viewModel::setTtsProvider,
     )
-    OutlinedTextField(
-        value = live.ttsModel,
-        onValueChange = { viewModel.setLive(live.copy(ttsModel = it)) },
-        label = { Text("Модель синтеза речи") },
-        supportingText = { Text("Пусто — перевод только текстом, без голоса в наушнике") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+    ModelField(
+        label = "Модель синтеза речи",
+        model = live.ttsModel,
+        suggestions = state.catalog.tts(draft.provider(live.ttsProvider)?.baseUrl.orEmpty()),
+        tierTitle = state.catalog::tierTitle,
+        models = emptyList(),
+        loading = false,
+        onChange = { viewModel.setLive(live.copy(ttsModel = it)) },
+        onLoadModels = null,
+        footnote = "Пусто — перевод только текстом, без голоса в наушнике",
     )
 
     VoicePicker(state, live, viewModel)

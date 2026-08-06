@@ -177,6 +177,18 @@ def tts_cost_usd(base_url: str, model: str, chars: int | None) -> float | None:
     return chars / 1_000_000 * entry["per_1m_chars"]
 
 
+def has_realtime_asr(base_url: str) -> bool | None:
+    """Есть ли у провайдера потоковое распознавание. None — адрес незнаком каталогу.
+
+    Три состояния, а не два: свой сервер (self-hosted Voxtral) каталогу неизвестен,
+    и запрещать ему живой перевод мы не вправе — пусть пробует подключиться.
+    """
+    entry = for_base_url(base_url)
+    if not entry.get("match"):
+        return None
+    return any("realtime" in m["id"] for m in entry.get("asr") or [])
+
+
 def default_live_models(base_url: str) -> dict:
     """Рекомендуемые модели живого перевода для провайдера с таким адресом.
 

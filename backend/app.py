@@ -12,6 +12,7 @@
   POST /admin/api/config  — сохранить конфигурацию (админ-доступ)
   GET  /admin/api/models  — список моделей провайдера (админ-доступ)
   GET  /admin/api/catalog — подобранные модели с ценами для выпадашек (админ-доступ)
+  GET  /admin/api/voices  — голоса синтеза речи провайдера (админ-доступ)
   GET  /admin/api/usage   — сводка расхода за период (админ-доступ)
   POST /admin/api/test    — прогнать текст через текущие настройки (админ-доступ)
 
@@ -33,6 +34,7 @@ import catalog
 import config_store
 import live_translate
 import usage_store
+import voices
 from prompts import build_system
 from providers import anthropic as anthropic_provider
 from providers.anthropic import AnthropicProvider
@@ -408,6 +410,27 @@ def admin_catalog():
     Отдаём с сервера, чтобы обновление цен не требовало пересборки приложения.
     """
     return jsonify(catalog=catalog.CATALOG, tiers=catalog.TIER_TITLES)
+
+
+@app.get("/admin/api/voices")
+@require_admin_api
+def admin_voices():
+    """Голоса синтеза речи выбранного провайдера — для кнопок в обеих панелях.
+
+    Живым запросом, а не списком в коде: у Mistral голоса лежат на его стороне и
+    пополняются (в том числе собственными клонированными), а у OpenAI списка нет
+    вовсе — там набор зашит в `voices.py`.
+    """
+    cfg = config_store.load()
+    name = request.args.get("provider") or (cfg.get("live") or {}).get("tts_provider")
+    prov = cfg["providers"].get(name or "")
+    if not prov:
+        return jsonify(error="unknown provider"), 404
+    try:
+        result = voices.catalog(prov.get("base_url") or "", resolve_api_key(name, prov))
+    except Exception as exc:  # noqa: BLE001 — причину показываем прямо в панели
+        return jsonify(error=str(exc)), 502
+    return jsonify(provider=name, **result)
 
 
 @app.post("/admin/api/test")

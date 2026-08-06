@@ -53,6 +53,13 @@ CATALOG = [
             {"id": "gpt-5.6-sol", "tier": PREMIUM, "in": 5.0, "out": 30.0,
              "price": "$5 / $30 за 1M", "note": "флагман, для сложных и длинных текстов"},
         ],
+        # Синтез речи. Цена не указана намеренно: OpenAI тарифицирует его по звуковым
+        # токенам, а не по символам, и пересчёт был бы догадкой — расход по этой модели
+        # честно покажется прочерком, пока цену не сверили с прайсом.
+        "tts": [
+            {"id": "gpt-4o-mini-tts", "tier": BALANCED, "price": "по звуковым токенам",
+             "note": "11 голосов, настроение задаётся полем instructions"},
+        ],
         "asr": [
             {"id": "gpt-transcribe", "tier": BALANCED, "per_min": 0.0045,
              "price": "$0.0045 / мин", "note": "рекомендуемая OpenAI, точнее Whisper"},
@@ -165,7 +172,7 @@ def asr_cost_usd(base_url: str, model: str, seconds: float | None) -> float | No
 def tts_cost_usd(base_url: str, model: str, chars: int | None) -> float | None:
     """Стоимость синтеза речи в долларах. None — если модели нет в каталоге."""
     entry = _find(base_url, "tts", model)
-    if not entry or not chars:
+    if not entry or not chars or not entry.get("per_1m_chars"):
         return None
     return chars / 1_000_000 * entry["per_1m_chars"]
 

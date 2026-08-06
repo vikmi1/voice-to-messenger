@@ -48,10 +48,12 @@ data class LiveConfig(
     val ttsProvider: String,
     val ttsModel: String,
     val ttsVoice: String,
+    /** Настроение для провайдеров с полем `instructions`; у остальных внутри голоса. */
+    val ttsMood: String,
     val sessionLimitMinutes: Int,
 ) {
     companion object {
-        val EMPTY = LiveConfig("", "", "", "", "", "", "", 10)
+        val EMPTY = LiveConfig("", "", "", "", "", "", "", "neutral", 10)
     }
 }
 
@@ -120,6 +122,7 @@ data class AdminConfig(
                 .put("tts_provider", live.ttsProvider)
                 .put("tts_model", live.ttsModel)
                 .put("tts_voice", live.ttsVoice)
+                .put("tts_mood", live.ttsMood)
                 .put("session_limit_minutes", live.sessionLimitMinutes))
             .put("base_prompt", basePrompt)
             .put("styles", stylesArr)
@@ -161,7 +164,10 @@ data class AdminConfig(
                     translateModel = liveObj.optString("translate_model"),
                     ttsProvider = liveObj.optString("tts_provider"),
                     ttsModel = liveObj.optString("tts_model"),
-                    ttsVoice = liveObj.optString("tts_voice"),
+                    // trim: голос нередко попадает в настройки копипастом с пробелом,
+                    // а провайдер отвечает на такой id 404 «Voice not found».
+                    ttsVoice = liveObj.optString("tts_voice").trim(),
+                    ttsMood = liveObj.optString("tts_mood").ifBlank { "neutral" },
                     sessionLimitMinutes = liveObj.optInt("session_limit_minutes", 10),
                 ),
                 basePrompt = root.optString("base_prompt"),

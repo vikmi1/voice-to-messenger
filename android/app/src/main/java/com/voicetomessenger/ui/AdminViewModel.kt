@@ -15,6 +15,7 @@ import com.voicetomessenger.data.ProviderConfig
 import com.voicetomessenger.data.ProviderKind
 import com.voicetomessenger.data.StyleConfig
 import com.voicetomessenger.data.UsageReport
+import com.voicetomessenger.data.VoiceCatalog
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,6 +44,7 @@ data class AdminUiState(
     val loadingModelsFor: String? = null,
     val test: TestState = TestState(),
     val usage: UsageState = UsageState(),
+    val voices: VoicesState = VoicesState(),
 ) {
     val hasChanges: Boolean get() = draft != null && draft != saved
 }
@@ -53,6 +55,21 @@ data class UsageState(
     val report: UsageReport? = null,
     val loading: Boolean = false,
     val error: String? = null,
+)
+
+/**
+ * Голоса синтеза речи выбранного провайдера — вкладка «Живой перевод».
+ *
+ * [gender] и [name] — промежуточный выбор в рядах кнопок: пока голос не выбран
+ * до конца, он ещё не записан в конфиг, но ряды уже должны его помнить.
+ */
+data class VoicesState(
+    val catalog: VoiceCatalog = VoiceCatalog.EMPTY,
+    val loadedFor: String = "",
+    val loading: Boolean = false,
+    val error: String? = null,
+    val gender: String? = null,
+    val name: String? = null,
 )
 
 data class TestState(
@@ -173,6 +190,74 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     fun setAsrProvider(key: String) = edit { it.copy(asrProvider = key) }
 
     fun setLive(live: LiveConfig) = edit { it.copy(live = live) }
+
+    /**
+     * Сменили провайдера озвучки: старые голос и модель ему заведомо не принадлежат
+     * (voxtral у OpenAI не существует, как и gpt-*-tts у Mistral), а оставшаяся чужая
+     * пара даёт 400 при первой же озвученной фразе.
+     */
+    fun setTtsProvider(key: String) {
+        val draft = _state.value.draft ?: return
+        val baseUrl = draft.provider(key)?.baseUrl.orEmpty()
+        edit {
+            it.copy(live = it.live.copy(
+                ttsProvider = key,
+                ttsModel = _state.value.catalog.tts(baseUrl).firstOrNull()?.id.orEmpty(),
+                ttsVoice = "",
+            ))
+        }
+        _state.update { it.copy(voices = VoicesState()) }
+        loadVoices()
+    }
+
+    /** Голоса провайдера озвучки. Тянутся при открытии вкладки и при смене провайдера. */
+    fun loadVoices() {
+        val draft = _state.value.draft ?: return
+        val key = draft.live.ttsProvider
+        val voices = _state.value.voices
+        if (key.isBlank() || voices.loading || voices.loadedFor == key) return
+
+        _state.update { it.copy(voices = it.voices.copy(loading = true, error = null)) }
+        viewModelScope.launch {
+            runCatching { container.admin.voices(key) }.fold(
+                onSuccess = { loaded ->
+                    _state.update {
+                        it.copy(voices = it.voices.copy(
+                            catalog = loaded, loadedFor = key, loading = false,
+                        ))
+                    }
+                },
+                onFailure = { e ->
+                    // Не беда: поле голоса остаётся обычным текстовым вводом.
+                    _state.update {
+                        it.copy(voices = it.voices.copy(
+                            loading = false, loadedFor = key,
+                            error = e.message ?: "Не удалось получить голоса",
+                        ))
+                    }
+                },
+            )
+        }
+    }
+
+    /** Выбор в ряду «пол»: имя сбрасываем — у другого пола оно другое. */
+    fun pickVoiceGender(gender: String) {
+        _state.update { it.copy(voices = it.voices.copy(gender = gender, name = null)) }
+    }
+
+    /** Выбор в ряду «имя». Если у имени один голос — он же и выбирается. */
+    fun pickVoiceName(name: String) {
+        val state = _state.value
+        val voices = state.voices
+        val gender = voices.gender ?: voices.catalog.find(state.draft?.live?.ttsVoice.orEmpty())?.gender.orEmpty()
+        _state.update { it.copy(voices = it.voices.copy(name = name)) }
+        val variants = voices.catalog.variants(gender, name)
+        if (variants.size == 1) setLive(state.draft!!.live.copy(ttsVoice = variants.first().id))
+    }
+
+    fun pickVoice(id: String) = edit { it.copy(live = it.live.copy(ttsVoice = id)) }
+
+    fun pickMood(id: String) = edit { it.copy(live = it.live.copy(ttsMood = id)) }
 
     fun setBasePrompt(text: String) = edit { it.copy(basePrompt = text) }
 

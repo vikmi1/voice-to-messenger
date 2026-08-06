@@ -41,6 +41,12 @@
   .btn.small { padding: 5px 10px; font-size: var(--fs-caption); }
   .muted { color: #7a8089; font-size: var(--fs-caption); }
   .prov-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  /* Кнопки выбора голоса: пол → имя → настроение, три ряда «таблеток». */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 5px 0 12px; }
+  .chip { background: #1a1d24; color: #c3c7cf; border: 1px solid #262a33; border-radius: 999px;
+          padding: 6px 14px; cursor: pointer; font-size: var(--fs-body); }
+  .chip:hover { border-color: #3a4150; }
+  .chip.on { background: #2b6cff; color: #fff; border-color: #2b6cff; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
            background: #1f7a3d; color: #fff; padding: 10px 18px; border-radius: 8px; opacity: 0;
            transition: opacity .2s; pointer-events: none; }
@@ -138,18 +144,31 @@
       <div class="row">
         <div>
           <label>Озвучка — провайдер</label>
-          <select id="live_tts_provider"></select>
+          <select id="live_tts_provider" onchange="onTtsProviderChange()"></select>
         </div>
         <div>
           <label>Модель синтеза речи (пусто — без озвучки)</label>
           <input id="live_tts_model" placeholder="voxtral-mini-tts-2603">
         </div>
       </div>
+      <div class="card" style="background:rgba(0,0,0,.02);">
+        <label>Голос</label>
+        <p class="muted">Список тянется прямо у провайдера. У Mistral настроение — часть
+          самого голоса (Paul&nbsp;—&nbsp;Happy и Paul&nbsp;—&nbsp;Sad это разные голоса),
+          у OpenAI оно задаётся отдельно кнопками ниже. Пол показывается только там, где
+          провайдер его публикует: OpenAI этого не делает, гадать по именам не будем.</p>
+        <div id="voice_picker" class="muted">Загружаю голоса…</div>
+        <input id="live_tts_voice" placeholder="можно вписать id голоса вручную">
+      </div>
+
+      <div class="card" id="mood_card" style="background:rgba(0,0,0,.02); display:none;">
+        <label>Настроение</label>
+        <p class="muted">Уходит в запрос полем <code>instructions</code> — одним и тем же
+          голосом можно говорить и бодро, и сухо.</p>
+        <div id="mood_picker"></div>
+      </div>
+
       <div class="row">
-        <div>
-          <label>Голос (пусто — голос провайдера по умолчанию)</label>
-          <input id="live_tts_voice" placeholder="">
-        </div>
         <div>
           <label>Предел одной сессии, минут</label>
           <input id="live_limit" type="number" min="1" max="120">
@@ -328,12 +347,150 @@ function render() {
   document.getElementById("live_stt_model").value = live.stt_model || "";
   document.getElementById("live_translate_model").value = live.translate_model || "";
   document.getElementById("live_tts_model").value = live.tts_model || "";
-  document.getElementById("live_tts_voice").value = live.tts_voice || "";
+  // trim: голос часто приезжает копипастом с пробелом, а API на такой id отвечает 404.
+  document.getElementById("live_tts_voice").value = (live.tts_voice || "").trim();
   document.getElementById("live_limit").value = live.session_limit_minutes ?? 10;
+  MOOD = live.tts_mood || "neutral";
+  loadVoices();
 
   // Приложение
   document.getElementById("api_token").value = CFG.api_token || "";
   document.getElementById("admin_token").value = CFG.admin_token || "";
+}
+
+// --- Голоса синтеза речи ---------------------------------------------------
+
+let VOICES = null;              // ответ /admin/api/voices для выбранного провайдера
+let MOOD = "neutral";           // настроение для провайдеров с instructions
+// Промежуточный выбор в рядах «пол» и «имя»: null — брать из выбранного голоса.
+let VOICE_UI = { gender: null, name: null };
+
+/**
+ * Сменили провайдера озвучки. Старый голос и старая модель ему заведомо не
+ * принадлежат — voxtral у OpenAI не существует, как и gpt-*-tts у Mistral,
+ * а оставшаяся чужая пара даёт 400 при первой же фразе.
+ */
+function onTtsProviderChange() {
+  const key = document.getElementById("live_tts_provider").value;
+  const url = CFG.providers[key]?.base_url || "";
+  document.getElementById("live_tts_voice").value = "";
+  document.getElementById("live_tts_model").value = (catalogFor(url).tts || [])[0]?.id || "";
+  VOICE_UI = { gender: null, name: null };
+  loadVoices();
+}
+
+async function loadVoices() {
+  const provider = document.getElementById("live_tts_provider").value;
+  VOICES = null;
+  renderVoices();
+  if (!provider) return;
+  try {
+    const r = await fetch(`/admin/api/voices?provider=${encodeURIComponent(provider)}`);
+    VOICES = await r.json();
+    if (!r.ok) VOICES = { error: VOICES.error || `HTTP ${r.status}` };
+  } catch (e) {
+    VOICES = { error: String(e) };
+  }
+  renderVoices();
+}
+
+function chipRow(items, isOn, onPick) {
+  const row = document.createElement("div");
+  row.className = "chips";
+  items.forEach(it => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (isOn(it) ? " on" : "");
+    b.textContent = it.title;
+    b.onclick = () => onPick(it);
+    row.appendChild(b);
+  });
+  return row;
+}
+
+function renderVoices() {
+  const box = document.getElementById("voice_picker");
+  const moodCard = document.getElementById("mood_card");
+  box.innerHTML = "";
+
+  if (!VOICES) { box.innerHTML = '<span class="muted">Загружаю голоса…</span>'; return; }
+  if (VOICES.error) {
+    box.innerHTML = `<span class="muted">Не удалось получить голоса: ${esc(VOICES.error)}.
+      Впиши id голоса вручную ниже.</span>`;
+    return;
+  }
+
+  // Настроения показываем только там, где они задаются отдельно от голоса.
+  moodCard.style.display = VOICES.supports_instructions ? "" : "none";
+  if (VOICES.supports_instructions) {
+    const picker = document.getElementById("mood_picker");
+    picker.innerHTML = "";
+    picker.appendChild(chipRow(
+      (VOICES.moods || []).map(m => ({ ...m, title: m.title })),
+      m => m.id === MOOD,
+      m => { MOOD = m.id; renderVoices(); },
+    ));
+  }
+
+  const list = VOICES.voices || [];
+  if (!list.length) {
+    box.innerHTML = '<span class="muted">У этого провайдера список голосов недоступен — впиши id вручную.</span>';
+    return;
+  }
+
+  const input = document.getElementById("live_tts_voice");
+  const chosen = list.find(v => v.id === input.value.trim());
+  const gender = VOICE_UI.gender ?? (chosen ? chosen.gender : "");
+  const genders = [...new Set(list.map(v => v.gender).filter(Boolean))];
+
+  // Ряд пола — только если провайдер его публикует. OpenAI не публикует, и
+  // угадывать пол по имени голоса мы не станем.
+  if (genders.length) {
+    const titles = { male: "Мужской", female: "Женский" };
+    box.appendChild(chipRow(
+      genders.map(g => ({ id: g, title: titles[g] || g })),
+      g => g.id === gender,
+      g => { VOICE_UI = { gender: g.id, name: null }; renderVoices(); },
+    ));
+  }
+
+  const byGender = genders.length ? list.filter(v => v.gender === gender) : list;
+  const name = VOICE_UI.name ?? (chosen ? chosen.name : "");
+  const names = [...new Set(byGender.map(v => v.name))];
+
+  box.appendChild(chipRow(
+    names.map(n => ({ id: n, title: n })),
+    n => n.id === name,
+    n => {
+      VOICE_UI = { gender, name: n.id };
+      // У голоса без настроений выбор имени — это и есть выбор голоса.
+      const only = byGender.filter(v => v.name === n.id);
+      if (only.length === 1) setVoice(only[0].id);
+      renderVoices();
+    },
+  ));
+
+  const moods = byGender.filter(v => v.name === name);
+  if (moods.length > 1) {
+    box.appendChild(chipRow(
+      moods.map(v => ({ id: v.id, title: v.mood || v.id })),
+      v => v.id === input.value.trim(),
+      v => setVoice(v.id),
+    ));
+  }
+
+  const current = list.find(v => v.id === input.value.trim());
+  if (current) {
+    const langs = (current.languages || []).join(", ");
+    box.insertAdjacentHTML("beforeend",
+      `<p class="muted">Выбран: <code>${esc(current.id)}</code>${
+        current.mood ? ` · ${esc(current.mood)}` : ""}${langs ? ` · ${esc(langs)}` : ""}</p>`);
+  }
+}
+
+function setVoice(id) {
+  document.getElementById("live_tts_voice").value = id;
+  renderVoices();
 }
 
 function refreshProviderSelects() {
@@ -407,7 +564,7 @@ function providerCard(key, p) {
 /** Подобранные модели для этого адреса API. Незнакомый провайдер — пустые списки. */
 function catalogFor(baseUrl) {
   const url = (baseUrl || "").toLowerCase();
-  return CATALOG.catalog.find(e => url.includes(e.match)) || { llm: [], asr: [] };
+  return CATALOG.catalog.find(e => url.includes(e.match)) || { llm: [], asr: [], tts: [] };
 }
 
 function tierName(tier) { return CATALOG.tiers[tier] || tier; }
@@ -698,6 +855,7 @@ function collect() {
       tts_provider: document.getElementById("live_tts_provider").value,
       tts_model: document.getElementById("live_tts_model").value.trim(),
       tts_voice: document.getElementById("live_tts_voice").value.trim(),
+      tts_mood: MOOD,
       session_limit_minutes: Number(document.getElementById("live_limit").value) || 10,
     },
     base_prompt: document.getElementById("base_prompt").value,

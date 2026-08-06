@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import com.voicetomessenger.data.AdminConfig
 import com.voicetomessenger.data.CatalogModel
 import com.voicetomessenger.data.LanguageConfig
+import com.voicetomessenger.data.LiveConfig
 import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.ProviderConfig
 import com.voicetomessenger.data.ProviderKind
@@ -127,7 +128,7 @@ fun AdminScreen(viewModel: AdminViewModel, onBack: () -> Unit) {
                         when (tab) {
                             0 -> ProvidersTab(state, draft, viewModel)
                             1 -> AsrTab(draft, viewModel)
-                            2 -> LiveTab(draft, viewModel)
+                            2 -> LiveTab(state, draft, viewModel)
                             3 -> PromptTab(draft, viewModel)
                             4 -> StylesTab(draft, viewModel)
                             5 -> LanguagesTab(draft, viewModel)
@@ -461,8 +462,11 @@ private fun AsrTab(draft: AdminConfig, viewModel: AdminViewModel) {
 }
 
 @Composable
-private fun LiveTab(draft: AdminConfig, viewModel: AdminViewModel) {
+private fun LiveTab(state: AdminUiState, draft: AdminConfig, viewModel: AdminViewModel) {
     val live = draft.live
+    // Голоса тянутся при первом показе вкладки, а не вместе с настройками: за ними
+    // бэкенд ходит к провайдеру, и на остальных вкладках этот запрос не нужен.
+    LaunchedEffect(live.ttsProvider) { viewModel.loadVoices() }
     // Потоковое распознавание и синтез идут по OpenAI-совместимым эндпоинтам,
     // которых у Anthropic нет.
     val openAiProviders = draft.providers
@@ -520,7 +524,7 @@ private fun LiveTab(draft: AdminConfig, viewModel: AdminViewModel) {
     ChipRow(
         options = openAiProviders,
         selected = live.ttsProvider,
-        onSelect = { viewModel.setLive(live.copy(ttsProvider = it)) },
+        onSelect = viewModel::setTtsProvider,
     )
     OutlinedTextField(
         value = live.ttsModel,
@@ -530,14 +534,8 @@ private fun LiveTab(draft: AdminConfig, viewModel: AdminViewModel) {
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
-    OutlinedTextField(
-        value = live.ttsVoice,
-        onValueChange = { viewModel.setLive(live.copy(ttsVoice = it)) },
-        label = { Text("Голос") },
-        supportingText = { Text("Пусто — голос провайдера по умолчанию") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
+
+    VoicePicker(state, live, viewModel)
 
     HorizontalDivider()
 
@@ -551,6 +549,110 @@ private fun LiveTab(draft: AdminConfig, viewModel: AdminViewModel) {
         supportingText = {
             Text("Забытый включённым микрофон тратит деньги молча — сессия закроется сама")
         },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * Выбор голоса: пол → имя → настроение.
+ *
+ * Ряд пола показывается только там, где провайдер публикует пол голосов (Mistral);
+ * OpenAI этого не делает, и гадать по именам мы не станем. Настроение у Mistral —
+ * часть самого голоса («Paul — Happy» и «Paul — Sad» это разные голоса), у OpenAI —
+ * отдельное поле запроса, поэтому его ряд появляется только для таких провайдеров.
+ *
+ * Ручной ввод оставлен: у Mistral можно клонировать собственный голос, и его id
+ * появится в списке не сразу.
+ */
+@Composable
+private fun VoicePicker(state: AdminUiState, live: LiveConfig, viewModel: AdminViewModel) {
+    val voices = state.voices
+    val catalog = voices.catalog
+    val chosen = catalog.find(live.ttsVoice)
+
+    Text("Голос", style = MaterialTheme.typography.labelLarge)
+
+    when {
+        voices.loading -> Text(
+            "Загружаю голоса…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        voices.error != null -> Text(
+            "Не удалось получить голоса: ${voices.error}. Впиши id вручную ниже.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+
+        catalog.voices.isEmpty() -> Text(
+            "У этого провайдера список голосов недоступен — впиши id вручную.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        else -> {
+            val gender = voices.gender ?: chosen?.gender.orEmpty()
+            if (catalog.genders.isNotEmpty()) {
+                val titles = mapOf("male" to "Мужской", "female" to "Женский")
+                ChipRow(
+                    options = catalog.genders.map { it to (titles[it] ?: it) },
+                    selected = gender,
+                    onSelect = viewModel::pickVoiceGender,
+                )
+            }
+
+            val name = voices.name ?: chosen?.name.orEmpty()
+            ChipRow(
+                options = catalog.names(gender).map { it to it },
+                selected = name,
+                onSelect = viewModel::pickVoiceName,
+            )
+
+            val variants = catalog.variants(gender, name)
+            if (variants.size > 1) {
+                ChipRow(
+                    options = variants.map { it.id to it.mood.ifBlank { it.id } },
+                    selected = live.ttsVoice,
+                    onSelect = viewModel::pickVoice,
+                )
+            }
+
+            if (chosen != null) {
+                Text(
+                    listOfNotNull(
+                        chosen.id,
+                        chosen.mood.takeIf { it.isNotBlank() },
+                        chosen.languages.joinToString(", ").takeIf { it.isNotBlank() },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (catalog.supportsInstructions && catalog.moods.isNotEmpty()) {
+                Text("Настроение", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    "Уходит в запрос полем instructions — одним голосом можно говорить " +
+                        "и бодро, и сухо.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ChipRow(
+                    options = catalog.moods.map { it.id to it.title },
+                    selected = live.ttsMood,
+                    onSelect = viewModel::pickMood,
+                )
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = live.ttsVoice,
+        onValueChange = { viewModel.setLive(live.copy(ttsVoice = it.trim())) },
+        label = { Text("id голоса") },
+        supportingText = { Text("Заполняется кнопками; можно вписать свой клонированный голос") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )

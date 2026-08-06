@@ -45,6 +45,7 @@ import websockets
 
 import catalog
 import usage_store
+import voices
 from providers.openai_compatible import complete, synthesize_speech
 
 log = logging.getLogger(__name__)
@@ -129,12 +130,23 @@ def resolve(cfg: dict, api_key_for) -> dict:
     except (TypeError, ValueError):
         limit = DEFAULT_LIMIT_MINUTES
 
+    # Озвучка необязательна: без неё живой перевод работает как бегущий текст.
+    tts = part("tts", "tts_model") if (live.get("tts_provider") and live.get("tts_model")) else None
+
+    # Настроение отдельным полем понимает только часть провайдеров; у остальных оно
+    # выбирается самим голосом, и лишнее поле в запросе даёт 400.
+    instructions = ""
+    if tts and voices.supports_instructions(tts["base_url"]):
+        instructions = voices.instructions_for(live.get("tts_mood") or "")
+
     return {
         "stt": part("stt", "stt_model"),
         "translate": part("translate", "translate_model"),
-        # Озвучка необязательна: без неё живой перевод работает как бегущий текст.
-        "tts": part("tts", "tts_model") if (live.get("tts_provider") and live.get("tts_model")) else None,
+        "tts": tts,
+        # strip: голос нередко попадает в настройки копипастом с пробелом по краям,
+        # а API отвечает на такой id 404 «Voice not found».
         "tts_voice": (live.get("tts_voice") or "").strip(),
+        "tts_instructions": instructions,
         "limit_seconds": limit * 60,
     }
 
@@ -360,7 +372,7 @@ class Bridge:
         try:
             audio = await loop.run_in_executor(
                 None, synthesize_speech, part["base_url"], part["api_key"], part["model"],
-                text, self.parts["tts_voice"], "mp3",
+                text, self.parts["tts_voice"], "mp3", self.parts["tts_instructions"],
             )
         except Exception as exc:  # noqa: BLE001 — без озвучки перевод всё равно виден
             log.warning("live tts failed: %s", exc)

@@ -32,8 +32,12 @@ def _default_live() -> dict:
         "translate_model": "mistral-small-latest",
         "tts_provider": "mistral",
         "tts_model": models["tts_model"],
-        # Пусто — голос по умолчанию у провайдера. Свой можно вписать в панели.
-        "tts_voice": "",
+        # Голос синтеза. У Mistral обязателен: без него API отвечает 400
+        # «Either ref_audio or voice must be provided».
+        "tts_voice": "en_paul_neutral",
+        # Настроение для провайдеров с полем instructions (OpenAI). У Mistral
+        # настроение выбирается самим голосом, и это поле не используется.
+        "tts_mood": "neutral",
         # Потолок одной сессии. Живой перевод тратит деньги, пока включён, поэтому
         # оставленный без присмотра микрофон должен выключаться сам.
         "session_limit_minutes": 10,

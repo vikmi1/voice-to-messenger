@@ -23,13 +23,21 @@ data class ModelCatalog(
     private val entries: List<Entry>,
     private val tiers: Map<String, String>,
 ) {
-    data class Entry(val match: String, val llm: List<CatalogModel>, val asr: List<CatalogModel>)
+    data class Entry(
+        val match: String,
+        val llm: List<CatalogModel>,
+        val asr: List<CatalogModel>,
+        val tts: List<CatalogModel>,
+    )
 
     /** Модели для обработки текста у провайдера с таким адресом API. */
     fun llmFor(baseUrl: String): List<CatalogModel> = entryFor(baseUrl)?.llm.orEmpty()
 
     /** Модели распознавания речи у провайдера с таким адресом API. */
     fun asrFor(baseUrl: String): List<CatalogModel> = entryFor(baseUrl)?.asr.orEmpty()
+
+    /** Модели синтеза речи у провайдера с таким адресом API. */
+    fun tts(baseUrl: String): List<CatalogModel> = entryFor(baseUrl)?.tts.orEmpty()
 
     /** Человеческое название класса цены: «бюджет», «оптимум», «премиум». */
     fun tierTitle(tier: String): String = tiers[tier] ?: tier
@@ -50,6 +58,7 @@ data class ModelCatalog(
                     match = obj.optString("match"),
                     llm = obj.optJSONArray("llm").mapObjects(::model),
                     asr = obj.optJSONArray("asr").mapObjects(::model),
+                    tts = obj.optJSONArray("tts").mapObjects(::model),
                 )
             }
 

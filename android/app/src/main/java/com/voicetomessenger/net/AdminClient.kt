@@ -4,6 +4,7 @@ import com.voicetomessenger.data.AdminConfig
 import com.voicetomessenger.data.ModelCatalog
 import com.voicetomessenger.data.SettingsRepository
 import com.voicetomessenger.data.UsageReport
+import com.voicetomessenger.data.VoiceCatalog
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
@@ -86,6 +87,20 @@ class AdminClient(private val settings: SettingsRepository) {
             ensureAdminSuccessful(response)
             val arr = JSONObject(response.body?.string().orEmpty()).optJSONArray("models")
             (0 until (arr?.length() ?: 0)).map { arr!!.getString(it) }
+        }
+    }
+
+    /** Голоса синтеза речи провайдера. Старый бэкенд отдаст 404 — см. вызывающего. */
+    suspend fun voices(providerKey: String): VoiceCatalog = withContext(Dispatchers.IO) {
+        val (base, token) = credentials()
+        val url = "$base/admin/api/voices".toHttpUrl().newBuilder()
+            .addQueryParameter("provider", providerKey)
+            .build()
+        val request = Request.Builder().url(url).header("X-Admin-Token", token).get().build()
+
+        http.newCall(request).execute().use { response ->
+            ensureAdminSuccessful(response)
+            VoiceCatalog.parse(response.body?.string().orEmpty())
         }
     }
 

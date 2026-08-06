@@ -4,6 +4,7 @@
 (Ollama, LM Studio и т.п.) — различаются только base_url, api_key и model.
 """
 
+import base64
 import json
 from typing import Iterator, NamedTuple
 
@@ -119,18 +120,30 @@ def complete(base_url: str, api_key: str, model: str, system: str, user: str,
 
 def synthesize_speech(base_url: str, api_key: str, model: str, text: str,
                       voice: str = "", response_format: str = "mp3",
-                      timeout: int = 60) -> bytes:
+                      instructions: str = "", timeout: int = 60) -> bytes:
     """Текст → аудио через `/audio/speech`. Возвращает готовый файл байтами.
 
     mp3, а не сырой PCM: приложению не нужно знать частоту дискретизации синтеза —
     оно просто отдаёт файл системному плееру.
+
+    Форма ответа у провайдеров разная, и это не мелочь: **Mistral отдаёт JSON
+    `{"audio_data": "<base64>"}`**, а OpenAI — сами байты файла. Отличаем по
+    Content-Type. Первая версия этого кода возвращала `resp.content` как есть, и
+    приложение честно скармливало плееру JSON-документ: перевод работал, деньги
+    тратились, звука не было ни звука — MediaPlayer молча отказывался его играть.
+
+    [instructions] — как произносить (тон, темп, настроение). Понимает OpenAI
+    (`gpt-4o-mini-tts`); у Mistral настроение зашито в сам голос, поэтому
+    параметр туда не отправляется — незнакомое поле там даёт 400.
     """
     if not api_key:
         raise RuntimeError("Не задан API-ключ провайдера озвучки.")
 
     payload = {"model": model, "input": text, "response_format": response_format}
     if voice:
-        payload["voice_id"] = voice
+        payload["voice"] = voice
+    if instructions:
+        payload["instructions"] = instructions
 
     resp = requests.post(
         f"{(base_url or '').rstrip('/')}/audio/speech",
@@ -139,6 +152,13 @@ def synthesize_speech(base_url: str, api_key: str, model: str, text: str,
     )
     if resp.status_code >= 400:
         raise RuntimeError(f"{resp.status_code}: {resp.text[:300]}")
+
+    if "application/json" in (resp.headers.get("content-type") or ""):
+        body = resp.json()
+        encoded = body.get("audio_data") or body.get("audio")
+        if not encoded:
+            raise RuntimeError(f"В ответе синтеза нет аудио: {str(body)[:200]}")
+        return base64.b64decode(encoded)
     return resp.content
 
 

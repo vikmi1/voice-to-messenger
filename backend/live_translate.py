@@ -6,10 +6,14 @@
 (дешёвой и быстрой) моделью. Если включена озвучка, перевод ещё и синтезируется
 в mp3 и уходит обратно в наушник.
 
-Почему не одна модель: живого перевода «звук → звук» у Mistral нет. Realtime-модель
-только распознаёт (зато сама определяет язык говорящего), перевод и синтез —
-отдельные вызовы. Отсюда и три строки расхода на сессию: live_stt, live_translate,
-live_tts.
+Режима два, и выбирает его модель распознавания (см. `catalog.realtime_mode`):
+
+- **три модели** (`transcribe`, Mistral) — realtime-модель только распознаёт, зато сама
+  определяет язык говорящего; перевод и синтез идут отдельными вызовами. Отсюда три
+  строки расхода на сессию: `live_stt`, `live_translate`, `live_tts`. Класс `Bridge`.
+- **одна модель** (`translate`, OpenAI `gpt-realtime-translate`) — слышит, переводит и
+  озвучивает сама. Настройки перевода и озвучки при ней не используются, расход одной
+  строкой `live_speech`. Класс `SoloBridge`, протокол у него совсем другой.
 
 Протокол с приложением
     приложение → сервер
@@ -24,6 +28,9 @@ live_tts.
         {"type":"unit","id":1,"original":"…"}    кусок закрыт, ушёл на перевод
         {"type":"translation","id":1,"text":"…"}
         {"type":"audio","id":1,"format":"mp3","data":"<base64>"}
+        {"type":"audio_stream","format":"pcm16","sample_rate":24000,"data":"<base64>"}
+            — только режим одной модели: озвучка приходит непрерывным потоком, а не
+              готовым файлом на фразу, и играется через AudioTrack
         {"type":"credits","spent":42}
         {"type":"limit"}                         вышло время сессии, дальше закрытие
         {"type":"error","message":"…"}
@@ -34,6 +41,7 @@ live_tts.
 """
 
 import asyncio
+import audioop
 import base64
 import json
 import logging
@@ -142,8 +150,34 @@ def resolve(cfg: dict, api_key_for) -> dict:
     except (TypeError, ValueError):
         limit = DEFAULT_LIMIT_MINUTES
 
+    stt = part("stt", "stt_model")
+    # Потоковую модель нельзя подменить обычной: у каждой свой эндпоинт и свой протокол.
+    # Пара «провайдер + чужая модель» раньше давала не отказ, а невнятный «HTTP 503» или
+    # «403» из шлюза — теперь говорим прямо, что выбрать.
+    known = catalog.realtime_asr_models(stt["base_url"])
+    if catalog.has_realtime_asr(stt["base_url"]) is False:
+        raise LiveConfigError(
+            f"У провайдера «{stt['provider']}» нет потокового распознавания. "
+            "Открой админ-панель → «Живой перевод» и выбери провайдера, у которого оно есть.",
+        )
+    if known and stt["model"] not in [m["id"] for m in known]:
+        raise LiveConfigError(
+            f"Модель «{stt['model']}» у провайдера «{stt['provider']}» не потоковая. "
+            f"Выбери из списка: {', '.join(m['id'] for m in known)}.",
+        )
+
+    # Каким протоколом говорить с этой моделью — см. catalog.realtime_mode.
+    mode = catalog.realtime_mode(stt["base_url"], stt["model"]) or "transcribe"
+
+    # Модель режима `translate` переводит и озвучивает сама — отдельные модели перевода
+    # и синтеза при ней не нужны и не спрашиваются. Требовать их значило бы просить
+    # настроить то, что всё равно не будет вызвано.
+    translate = None if mode == "translate" else part("translate", "translate_model")
+
     # Озвучка необязательна: без неё живой перевод работает как бегущий текст.
-    tts = part("tts", "tts_model") if (live.get("tts_provider") and live.get("tts_model")) else None
+    tts = None
+    if mode != "translate" and live.get("tts_provider") and live.get("tts_model"):
+        tts = part("tts", "tts_model")
 
     # Настроение отдельным полем понимает только часть провайдеров; у остальных оно
     # выбирается самим голосом, и лишнее поле в запросе даёт 400.
@@ -151,21 +185,10 @@ def resolve(cfg: dict, api_key_for) -> dict:
     if tts and voices.supports_instructions(tts["base_url"]):
         instructions = voices.instructions_for(live.get("tts_mood") or "")
 
-    stt = part("stt", "stt_model")
-    # Эндпоинт `/audio/transcriptions/realtime` есть не у всех: у OpenAI потоковое
-    # распознавание живёт по другому адресу и говорит на другом протоколе, и попытка
-    # подключиться к нему заканчивается невнятным «HTTP 503» из их шлюза.
-    if catalog.has_realtime_asr(stt["base_url"]) is False:
-        raise LiveConfigError(
-            f"У провайдера «{stt['provider']}» нет потокового распознавания: "
-            "WebSocket /audio/transcriptions/realtime на 06.08.2026 есть только у Mistral. "
-            "Открой админ-панель → «Живой перевод» и выбери Mistral для распознавания "
-            "(перевод и озвучку можно оставить любые).",
-        )
-
     return {
+        "mode": mode,
         "stt": stt,
-        "translate": part("translate", "translate_model"),
+        "translate": translate,
         "tts": tts,
         # strip: голос нередко попадает в настройки копипастом с пробелом по краям,
         # а API отвечает на такой id 404 «Voice not found».
@@ -222,14 +245,21 @@ class _Assembler:
 # --- Учёт расхода ----------------------------------------------------------
 
 class _Ledger:
-    """Расход сессии. Копим и пишем тремя строками в конце, а не по куску.
+    """Расход сессии. Копим и пишем строками в конце, а не по куску.
 
     Один разговор — это десятки кусков; отдельная строка журнала на каждый
     превратила бы вкладку «Расход» в ленту из сотен записей ни о чём.
+
+    В режиме трёх моделей строк три (`live_stt`, `live_translate`, `live_tts`), в режиме
+    одной — одна (`live_speech`): там и считать нечего, кроме минут.
     """
 
     def __init__(self, parts: dict) -> None:
         self.parts = parts
+        self.solo = parts.get("mode") == "translate"
+        # В режиме одной модели считаем ВЫХОДНОЕ аудио: счёт провайдер выставляет за него,
+        # а не за то, сколько наговорил человек. Оно приходит в 24 кГц, отсюда свой делитель.
+        self._bytes_per_second = 24_000 * 2 if self.solo else _BYTES_PER_SECOND
         self.audio_bytes = 0
         self.input_tokens = 0
         self.output_tokens = 0
@@ -237,14 +267,15 @@ class _Ledger:
 
     @property
     def audio_seconds(self) -> float:
-        return round(self.audio_bytes / _BYTES_PER_SECOND, 1)
+        return round(self.audio_bytes / self._bytes_per_second, 1)
 
     def usd(self) -> float:
-        stt, tr, tts = self.parts["stt"], self.parts["translate"], self.parts["tts"]
+        stt, tr, tts = self.parts["stt"], self.parts.get("translate"), self.parts.get("tts")
         total = catalog.asr_cost_usd(stt["base_url"], stt["model"], self.audio_seconds) or 0.0
-        total += catalog.llm_cost_usd(
-            tr["base_url"], tr["model"], self.input_tokens, self.output_tokens,
-        ) or 0.0
+        if tr:
+            total += catalog.llm_cost_usd(
+                tr["base_url"], tr["model"], self.input_tokens, self.output_tokens,
+            ) or 0.0
         if tts:
             total += catalog.tts_cost_usd(tts["base_url"], tts["model"], self.tts_chars) or 0.0
         return total
@@ -254,16 +285,17 @@ class _Ledger:
 
     def flush(self, session_id: str, target_lang: str, error: str | None = None) -> None:
         """Пишет строки расхода. Вызывается один раз, в finally — даже если связь оборвалась."""
-        stt, tr, tts = self.parts["stt"], self.parts["translate"], self.parts["tts"]
+        stt, tr, tts = self.parts["stt"], self.parts.get("translate"), self.parts.get("tts")
         ok = 0 if error else 1
         if self.audio_bytes:
             usage_store.record(
-                id=f"{session_id}-stt", op="live_stt", provider=stt["provider"],
+                id=f"{session_id}-stt", op="live_speech" if self.solo else "live_stt",
+                provider=stt["provider"],
                 base_url=stt["base_url"], model=stt["model"],
                 audio_bytes=self.audio_bytes, audio_seconds=self.audio_seconds,
                 audio_seconds_source="stream", target_lang=target_lang, ok=ok, error=error,
             )
-        if self.input_tokens or self.output_tokens:
+        if tr and (self.input_tokens or self.output_tokens):
             usage_store.record(
                 id=f"{session_id}-tr", op="live_translate", provider=tr["provider"],
                 base_url=tr["base_url"], model=tr["model"],
@@ -653,8 +685,266 @@ class Bridge:
             if lang in LANG_NAMES:
                 self.target_lang = lang
             if "speak" in data:
-                self.speak = bool(data["speak"]) and self.parts["tts"] is not None
+                self.speak = bool(data["speak"]) and self.parts.get("tts") is not None
         return True
+
+
+# --- Мост на одной модели --------------------------------------------------
+
+#: Ниже этого пика порция считается тишиной временно́й шкалы (см. SoloBridge).
+#: Ноль встречается буквально: молчание модель отдаёт нулевыми отсчётами.
+_SILENT_PEAK = 32
+
+#: Сколько подряд тишины ждать после «стоп», прежде чем вешать трубку.
+#: 8 порций по 0.4 с — хвост последней фразы приезжает заметно раньше.
+_TAIL_SILENT_CHUNKS = 8
+
+
+class SoloBridge(Bridge):
+    """Живой перевод одной моделью — диалект OpenAI (`gpt-realtime-translate`).
+
+    Модель слышит, переводит и озвучивает сама: отдельных вызовов перевода и синтеза
+    нет, поэтому нет и очереди переводов, и в журнале расхода одна строка вместо трёх.
+
+    Протокол снят с живого эндпоинта 07.08.2026, в документации его нет целиком:
+
+    - адрес `/realtime/translations?model=…`; язык перевода задаётся `session.update`,
+      и **задать его обязательно** — по умолчанию модель переводит на испанский;
+    - звук уходит событием `session.input_audio_buffer.append` и **в 24 кГц** (приложение
+      пишет 16 — пересчитываем здесь, чтобы не трогать запись на телефоне);
+    - обратно идут два потока: `session.output_transcript.delta` (текст перевода) и
+      `session.output_audio.delta` (PCM 24 кГц кусками по 0.4 с);
+    - модель ведёт свою временну́ю шкалу и по `session.close` досылает её целиком.
+      После конца речи это буквально нули: в проверке 29 секунд тишины на 3 секунды
+      речи. В наушник и в мобильный трафик мы их не пускаем.
+
+    Исходный текст (что человек сказал) модель отдаёт только с включённой расшифровкой
+    входа — это отдельная платная модель поверх. Не включаем: лента показывает перевод,
+    а платить вдвое за подпись под ним незачем.
+    """
+
+    #: Частота, которую ждёт эндпоинт.
+    UPSTREAM_RATE = 24_000
+
+    def __init__(self, client, parts: dict, session_id: str, target_lang: str, speak: bool):
+        super().__init__(client, parts, session_id, target_lang, speak)
+        # Модель озвучивает всегда; тумблер в приложении решает только, слать ли звук ему.
+        self.speak = self.speak_requested
+        self._resample_state = None
+        self._silent_run = 0
+
+    # -- звук ------------------------------------------------------------
+
+    def _to_upstream_rate(self, pcm: bytes) -> bytes:
+        """16 кГц с телефона → 24 кГц, которых ждёт модель.
+
+        Состояние `ratecv` держим между порциями: без него на стыках щёлкает.
+        `audioop` удалён в Python 3.13 — образ намеренно на 3.12, см. Dockerfile.
+        """
+        converted, self._resample_state = audioop.ratecv(
+            pcm, 2, 1, SAMPLE_RATE, self.UPSTREAM_RATE, self._resample_state,
+        )
+        return converted
+
+    def _forward_audio(self, encoded: str) -> None:
+        pcm = base64.b64decode(encoded)
+        # Считаем всё, что модель сгенерировала: счёт выставляется за выходное аудио,
+        # а не за то, что мы решили доиграть.
+        self.ledger.audio_bytes += len(pcm)
+        if audioop.max(pcm, 2) <= _SILENT_PEAK:
+            self._silent_run += 1
+            return
+        self._silent_run = 0
+        if self.speak:
+            self._send({
+                "type": "audio_stream", "format": "pcm16",
+                "sample_rate": self.UPSTREAM_RATE,
+                "data": base64.b64encode(pcm).decode("ascii"),
+            })
+
+    # -- события модели --------------------------------------------------
+
+    def _queue_unit(self, text: str) -> None:
+        """Фраза закрыта. Перевод уже готов — очереди и второго вызова здесь нет."""
+        self.unit_no += 1
+        # Оригинал не показываем: модель его не отдаёт (см. про расшифровку входа выше).
+        self._send({"type": "unit", "id": self.unit_no, "original": ""})
+        self._send({"type": "translation", "id": self.unit_no, "text": text})
+
+    def _on_event(self, event: dict) -> bool:
+        kind = event.get("type")
+
+        if kind == "session.output_transcript.delta":
+            unit = self.assembler.add(event.get("delta") or "")
+            self._send({"type": "partial", "text": self.assembler.buffer.strip()})
+            if unit:
+                self._queue_unit(unit)
+
+        elif kind == "session.output_audio.delta":
+            self._forward_audio(event.get("delta") or "")
+
+        elif kind == "session.closed":
+            unit = self.assembler.take()
+            if unit:
+                self._queue_unit(unit)
+            return False
+
+        elif kind == "error":
+            detail = event.get("error") or {}
+            message = detail.get("message") if isinstance(detail, dict) else str(detail)
+            self.error = str(message or "ошибка перевода")
+            self._send({"type": "error", "message": self.error})
+            self.stopping = True
+            return False
+
+        return True
+
+    # -- основной цикл ---------------------------------------------------
+
+    def _session_config(self) -> dict:
+        return {"audio": {"output": {"language": self.target_lang}}}
+
+    async def run(self) -> None:
+        loop = asyncio.get_running_loop()
+        inbox: asyncio.Queue = asyncio.Queue()
+
+        stt = self.parts["stt"]
+        scheme = "ws" if stt["base_url"].startswith("http://") else "wss"
+        host = stt["base_url"].split("://", 1)[-1]
+        url = f"{scheme}://{host}/realtime/translations?model={quote(stt['model'])}"
+
+        reader = threading.Thread(
+            target=self._reader, args=(loop, inbox), name="live-reader", daemon=True,
+        )
+        reader.start()
+
+        started = time.monotonic()
+        try:
+            async with websockets.connect(
+                url,
+                additional_headers={"Authorization": f"Bearer {stt['api_key']}"},
+                open_timeout=20,
+                max_size=None,
+            ) as upstream:
+                await self._handshake(upstream)
+                self._send({"type": "ready", "limit_seconds": self.parts["limit_seconds"]})
+
+                pump = asyncio.create_task(self._pump_upstream(upstream))
+                try:
+                    await self._pump_client(upstream, inbox, started)
+                finally:
+                    self.ending = True
+                    try:
+                        # Хвост последней фразы модель отдаёт только после этого события,
+                        # а следом гонит тишину — её ждать незачем, см. _pump_upstream.
+                        await upstream.send(json.dumps({"type": "session.close"}))
+                        await asyncio.wait_for(pump, timeout=10)
+                    except Exception:  # noqa: BLE001 — связь могла уже оборваться
+                        pump.cancel()
+        except LiveConfigError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — показываем причину в приложении
+            self.error = str(exc)
+            log.error(
+                "live solo session failed after %.1f s, %.1f s of audio, %d units: %s",
+                time.monotonic() - started, self.ledger.audio_seconds, self.unit_no, exc,
+                exc_info=True,
+            )
+            self._send({"type": "error", "message": f"Перевод недоступен: {exc}"})
+        finally:
+            self.stopping = True
+            self.ledger.flush(self.session_id, self.target_lang, self.error)
+            self._send({"type": "credits", "spent": self.ledger.credits()})
+            self._send({"type": "done"})
+
+    async def _handshake(self, upstream) -> None:
+        """Ждём session.created, задаём язык и убеждаемся, что его приняли.
+
+        Проверка обязательна: отвергнутый `session.update` не рвёт связь, а молча
+        оставляет язык по умолчанию — испанский. Один раз так и получили испанский
+        перевод вместо русского.
+        """
+        while True:
+            event = _decode(await asyncio.wait_for(upstream.recv(), timeout=20))
+            if event.get("type") == "session.created":
+                break
+            if event.get("type") == "error":
+                raise RuntimeError(_error_text(event))
+
+        await upstream.send(json.dumps({
+            "type": "session.update", "session": self._session_config(),
+        }))
+        while True:
+            event = _decode(await asyncio.wait_for(upstream.recv(), timeout=20))
+            if event.get("type") == "session.updated":
+                return
+            if event.get("type") == "error":
+                raise RuntimeError(_error_text(event))
+
+    async def _pump_upstream(self, upstream) -> None:
+        """События модели → приложение.
+
+        После «стоп» вешаем трубку, как только пошла сплошная тишина: дальше модель
+        досылает свою шкалу до конца, а это минуты нулей на медленном канале.
+        """
+        async for raw in upstream:
+            if not self._on_event(_decode(raw)):
+                return
+            if self.ending and self._silent_run >= _TAIL_SILENT_CHUNKS:
+                return
+
+    async def _pump_client(self, upstream, inbox: asyncio.Queue, started: float) -> None:
+        """Звук и команды приложения → модель.
+
+        Служебной тишины здесь нет: эта модель не считает сессию брошенной, если
+        помолчать (проверено), а лишний звук стоил бы денег — тариф за минуты.
+        """
+        last_credits = time.monotonic()
+        while not self.stopping:
+            try:
+                message = await asyncio.wait_for(inbox.get(), timeout=0.3)
+            except asyncio.TimeoutError:
+                message = _NOTHING
+
+            if message is None:  # приложение закрыло сокет
+                return
+
+            if message is not _NOTHING:
+                if isinstance(message, (bytes, bytearray)):
+                    await upstream.send(json.dumps({
+                        "type": "session.input_audio_buffer.append",
+                        "audio": base64.b64encode(
+                            self._to_upstream_rate(bytes(message)),
+                        ).decode("ascii"),
+                    }))
+                else:
+                    was = self.target_lang
+                    if not self._on_command(message):
+                        return
+                    if self.target_lang != was:
+                        # Язык меняется на ходу — переподключаться незачем.
+                        await upstream.send(json.dumps({
+                            "type": "session.update", "session": self._session_config(),
+                        }))
+
+            # Фраза без знака препинания на конце: закрываем по паузе.
+            unit = self.assembler.due_by_silence()
+            if unit:
+                self._queue_unit(unit)
+
+            now = time.monotonic()
+            if now - last_credits >= _CREDITS_EVERY_S:
+                last_credits = now
+                self._send({"type": "credits", "spent": self.ledger.credits()})
+
+            if now - started >= self.parts["limit_seconds"]:
+                self._send({"type": "limit"})
+                return
+
+
+def _error_text(event: dict) -> str:
+    detail = event.get("error") or {}
+    return str(detail.get("message") if isinstance(detail, dict) else detail)
 
 
 class _Nothing:
@@ -674,6 +964,10 @@ def _decode(raw) -> dict:
 
 
 def serve(client, parts: dict, session_id: str, target_lang: str, speak: bool) -> None:
-    """Точка входа из Flask: своя петля asyncio на время сессии."""
-    bridge = Bridge(client, parts, session_id, target_lang, speak)
-    asyncio.run(bridge.run())
+    """Точка входа из Flask: своя петля asyncio на время сессии.
+
+    Мост выбирается по режиму модели распознавания: `translate` — одна модель на всё
+    (диалект OpenAI), иначе три модели (диалект Mistral). См. catalog.realtime_mode.
+    """
+    kind = SoloBridge if parts.get("mode") == "translate" else Bridge
+    asyncio.run(kind(client, parts, session_id, target_lang, speak).run())

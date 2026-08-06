@@ -57,8 +57,12 @@ CATALOG = [
         # токенам, а не по символам, и пересчёт был бы догадкой — расход по этой модели
         # честно покажется прочерком, пока цену не сверили с прайсом.
         "tts": [
-            {"id": "gpt-4o-mini-tts", "tier": BALANCED, "price": "по звуковым токенам",
+            {"id": "gpt-4o-mini-tts", "tier": BALANCED, "price": "$12 / 1M звуковых токенов",
              "note": "11 голосов, настроение задаётся полем instructions"},
+            {"id": "tts-1", "tier": BUDGET, "per_1m_chars": 15.0,
+             "price": "$15 / 1M символов", "note": "классическая, быстрая; настроение не понимает"},
+            {"id": "tts-1-hd", "tier": PREMIUM, "per_1m_chars": 30.0,
+             "price": "$30 / 1M символов", "note": "та же, но качественнее и вдвое дороже"},
         ],
         "asr": [
             {"id": "gpt-transcribe", "tier": BALANCED, "per_min": 0.0045,
@@ -69,6 +73,13 @@ CATALOG = [
              "price": "$0.006 / мин", "note": "классика, максимум совместимости"},
             {"id": "gpt-4o-transcribe", "tier": PREMIUM, "per_min": 0.006,
              "price": "$0.006 / мин", "note": "предыдущее поколение точных моделей"},
+            # Единственная модель, которая делает весь живой перевод одна: слышит,
+            # переводит и озвучивает. Отсюда `mode` — по нему мост выбирает протокол.
+            # Счёт идёт за минуты выходного аудио, а его модель гонит по своей
+            # временно́й шкале — то есть примерно за время сессии, а не за время речи.
+            {"id": "gpt-realtime-translate", "tier": PREMIUM, "per_min": 0.034,
+             "mode": "translate", "price": "$0.034 / мин",
+             "note": "слышит, переводит и озвучивает сама; «Перевод» и «Озвучка» не нужны"},
         ],
     },
     {
@@ -177,16 +188,34 @@ def tts_cost_usd(base_url: str, model: str, chars: int | None) -> float | None:
     return chars / 1_000_000 * entry["per_1m_chars"]
 
 
+def realtime_asr_models(base_url: str) -> list[dict]:
+    """Модели потокового распознавания провайдера — только они годятся для живого перевода."""
+    return [m for m in for_base_url(base_url).get("asr") or [] if "realtime" in m["id"]]
+
+
 def has_realtime_asr(base_url: str) -> bool | None:
     """Есть ли у провайдера потоковое распознавание. None — адрес незнаком каталогу.
 
     Три состояния, а не два: свой сервер (self-hosted Voxtral) каталогу неизвестен,
     и запрещать ему живой перевод мы не вправе — пусть пробует подключиться.
     """
-    entry = for_base_url(base_url)
-    if not entry.get("match"):
+    if not for_base_url(base_url).get("match"):
         return None
-    return any("realtime" in m["id"] for m in entry.get("asr") or [])
+    return bool(realtime_asr_models(base_url))
+
+
+def realtime_mode(base_url: str, model: str) -> str | None:
+    """Каким протоколом говорить с этой потоковой моделью.
+
+    `transcribe` — модель только распознаёт, перевод и озвучка отдельными вызовами
+    (диалект Mistral). `translate` — делает всё сама (диалект OpenAI). None — модель
+    каталогу неизвестна: это чужой или самодельный сервер, считаем его мистралевским,
+    потому что весь остальной код написан под этот протокол.
+    """
+    entry = _find(base_url, "asr", model)
+    if not entry:
+        return None
+    return entry.get("mode", "transcribe")
 
 
 def default_live_models(base_url: str) -> dict:

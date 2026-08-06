@@ -490,18 +490,27 @@ private fun LiveTab(state: AdminUiState, draft: AdminConfig, viewModel: AdminVie
         onSelect = viewModel::setLiveSttProvider,
     )
     val sttUrl = draft.provider(live.sttProvider)?.baseUrl.orEmpty()
+    val sttChoices = state.catalog.realtimeAsrFor(sttUrl)
+    // Модель, которая переводит и озвучивает сама: настройки ниже при ней не работают,
+    // и об этом надо сказать прямо — иначе они выглядят действующими.
+    val solo = sttChoices.find { it.id == live.sttModel.trim() }?.mode == "translate"
     ModelField(
         label = "Модель распознавания",
         model = live.sttModel,
         // Только realtime-модели: обычная транскрипция по WebSocket не работает.
-        suggestions = state.catalog.realtimeAsrFor(sttUrl),
+        suggestions = sttChoices,
         tierTitle = state.catalog::tierTitle,
         // Живой /models сюда не годится: он отдаёт всё вперемешку, а потоковых там единицы.
         models = emptyList(),
         loading = false,
         onChange = { viewModel.setLive(live.copy(sttModel = it)) },
         onLoadModels = null,
-        footnote = "Нужен WebSocket /audio/transcriptions/realtime — на 06.08.2026 только у Mistral",
+        footnote = if (solo) {
+            "Эта модель слышит, переводит и озвучивает сама — «Перевод» и «Озвучка» ниже " +
+                "при ней не используются. Счёт идёт за минуты, пока сессия открыта."
+        } else {
+            "Нужен потоковый эндпоинт провайдера — обычная модель распознавания не подойдёт"
+        },
     )
 
     HorizontalDivider()

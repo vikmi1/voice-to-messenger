@@ -124,11 +124,11 @@
         </div>
         <div>
           <label>Модель потокового распознавания</label>
-          <input id="live_stt_model" list="live_stt_models"
+          <input id="live_stt_model" list="live_stt_models" oninput="refreshSoloHint()"
                  placeholder="voxtral-mini-transcribe-realtime-2602">
           <datalist id="live_stt_models"></datalist>
-          <p class="muted">Нужен WebSocket-эндпоинт <code>/audio/transcriptions/realtime</code>.
-            На 06.08.2026 он есть только у Mistral.</p>
+          <p class="muted" id="live_stt_hint">Нужен потоковый эндпоинт провайдера —
+            обычная модель распознавания не подойдёт.</p>
         </div>
       </div>
       <div class="row">
@@ -426,6 +426,23 @@ function fillLiveModelLists() {
            catalogFor(liveBaseUrl("live_translate_provider")).llm || [], null);
   fillList(document.getElementById("live_tts_models"),
            catalogFor(liveBaseUrl("live_tts_provider")).tts || [], null);
+  refreshSoloHint();
+}
+
+/**
+ * Модель, которая переводит и озвучивает сама, отменяет два раздела ниже — говорим это
+ * прямо, иначе они выглядят действующими.
+ */
+function refreshSoloHint() {
+  const model = document.getElementById("live_stt_model").value.trim();
+  const chosen = realtimeAsr(liveBaseUrl("live_stt_provider")).find(m => m.id === model);
+  const hint = document.getElementById("live_stt_hint");
+  if (chosen && chosen.mode === "translate") {
+    hint.innerHTML = "Эта модель слышит, переводит и озвучивает сама — «Перевод» и " +
+      "«Озвучка» ниже при ней не используются. Счёт идёт за минуты, пока сессия открыта.";
+  } else {
+    hint.textContent = "Нужен потоковый эндпоинт провайдера — обычная модель распознавания не подойдёт.";
+  }
 }
 
 async function loadVoices() {

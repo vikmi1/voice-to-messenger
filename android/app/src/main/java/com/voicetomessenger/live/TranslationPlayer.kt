@@ -3,9 +3,13 @@ package com.voicetomessenger.live
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioTrack
 import android.media.MediaPlayer
 import java.io.File
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +25,13 @@ class TranslationPlayer(private val context: Context) {
 
     private val queue = ArrayDeque<File>()
     private var player: MediaPlayer? = null
+
+    /** Непрерывная озвучка: куски PCM и поток, который их проигрывает. */
+    private val chunks = LinkedBlockingQueue<ByteArray>()
+    private var streamThread: Thread? = null
+
+    @Volatile
+    private var streaming = false
 
     private val _playing = MutableStateFlow(false)
 
@@ -78,6 +89,72 @@ class TranslationPlayer(private val context: Context) {
         _playing.value = true
     }
 
+    /**
+     * Кусок непрерывной озвучки (режим одной модели).
+     *
+     * Здесь [AudioTrack], а не [MediaPlayer]: модель говорит потоком, готового файла на
+     * фразу у неё нет, а собирать его по кускам значило бы ждать конца фразы — ровно ту
+     * задержку, ради которой эта модель и берётся.
+     *
+     * Пишем в отдельном потоке: [AudioTrack.write] блокируется, пока буфер полон, и на
+     * главном потоке это был бы ANR.
+     */
+    @Synchronized
+    fun stream(pcm: ByteArray, sampleRate: Int) {
+        if (streamThread == null) startStream(sampleRate)
+        chunks.offer(pcm)
+    }
+
+    private fun startStream(sampleRate: Int) {
+        val minBuffer = AudioTrack.getMinBufferSize(sampleRate, CHANNEL_OUT, ENCODING)
+        if (minBuffer <= 0) return
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build(),
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(ENCODING)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(CHANNEL_OUT)
+                    .build(),
+            )
+            // Полсекунды запаса: сеть отдаёт куски неровно, а на пустом буфере слышен щелчок.
+            .setBufferSizeInBytes(maxOf(minBuffer, sampleRate))
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+
+        streaming = true
+        track.play()
+        streamThread = Thread({
+            try {
+                while (streaming) {
+                    val chunk = chunks.poll(IDLE_MS, TimeUnit.MILLISECONDS)
+                    if (chunk == null) {
+                        _playing.value = false
+                        continue
+                    }
+                    _playing.value = true
+                    var offset = 0
+                    while (offset < chunk.size && streaming) {
+                        val written = track.write(chunk, offset, chunk.size - offset)
+                        if (written <= 0) break
+                        offset += written
+                    }
+                }
+            } catch (_: InterruptedException) {
+                // Сессию остановили — выходим молча.
+            } finally {
+                runCatching { track.pause(); track.flush(); track.stop() }
+                track.release()
+                _playing.value = false
+            }
+        }, "live-audio-out").apply { isDaemon = true; start() }
+    }
+
     /** Обрывает озвучку и чистит очередь — например, когда сессию остановили. */
     @Synchronized
     fun clear() {
@@ -85,6 +162,12 @@ class TranslationPlayer(private val context: Context) {
         player = null
         queue.forEach { it.delete() }
         queue.clear()
+
+        streaming = false
+        chunks.clear()
+        streamThread?.interrupt()
+        streamThread = null
+
         _playing.value = false
     }
 
@@ -102,6 +185,12 @@ class TranslationPlayer(private val context: Context) {
     }
 
     private companion object {
+        const val CHANNEL_OUT = AudioFormat.CHANNEL_OUT_MONO
+        const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
+
+        /** Сколько ждать следующий кусок, прежде чем считать, что озвучка смолкла. */
+        const val IDLE_MS = 300L
+
         val HEADSET_TYPES = setOf(
             AudioDeviceInfo.TYPE_WIRED_HEADSET,
             AudioDeviceInfo.TYPE_WIRED_HEADPHONES,

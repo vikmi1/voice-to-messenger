@@ -270,6 +270,10 @@ class LiveViewModel(private val container: AppContainer) : ViewModel() {
 
             is LiveEvent.Audio -> if (_state.value.speak) player.enqueue(event.id, event.mp3)
 
+            // Режим одной модели: озвучка идёт потоком, а не файлом на фразу.
+            is LiveEvent.AudioStream ->
+                if (_state.value.speak) player.stream(event.pcm, event.sampleRate)
+
             is LiveEvent.Credits -> _state.update { it.copy(credits = event.spent) }
 
             LiveEvent.LimitReached -> {

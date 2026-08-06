@@ -42,6 +42,20 @@ sealed interface LiveEvent {
         override fun hashCode(): Int = 31 * id + mp3.contentHashCode()
     }
 
+    /**
+     * Кусок непрерывной озвучки (режим одной модели): сырой PCM, а не готовый файл.
+     *
+     * Такая модель говорит потоком, вперемешку с распознаванием, и «фразы целиком»
+     * у неё просто нет — играть это надо по мере поступления.
+     */
+    data class AudioStream(val pcm: ByteArray, val sampleRate: Int) : LiveEvent {
+        override fun equals(other: Any?): Boolean =
+            this === other ||
+                (other is AudioStream && sampleRate == other.sampleRate && pcm.contentEquals(other.pcm))
+
+        override fun hashCode(): Int = 31 * sampleRate + pcm.contentHashCode()
+    }
+
     data class Credits(val spent: Int) : LiveEvent
 
     /** Вышло время сессии — сервер закрывает её сам. */
@@ -187,6 +201,10 @@ class LiveConnection internal constructor(
             "audio" -> LiveEvent.Audio(
                 json.optInt("id"),
                 Base64.decode(json.optString("data"), Base64.DEFAULT),
+            )
+            "audio_stream" -> LiveEvent.AudioStream(
+                Base64.decode(json.optString("data"), Base64.DEFAULT),
+                json.optInt("sample_rate", 24_000),
             )
             "credits" -> LiveEvent.Credits(json.optInt("spent"))
             "limit" -> LiveEvent.LimitReached

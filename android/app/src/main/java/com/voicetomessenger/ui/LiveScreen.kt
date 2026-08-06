@@ -362,7 +362,9 @@ private fun Line(line: LiveLine) {
             )
         }
 
-        if (!line.sameLanguage) {
+        // Оригинала может не быть вовсе: модель, которая переводит сама, отдаёт только
+        // перевод — подписывать его пустой строкой незачем.
+        if (!line.sameLanguage && line.original.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(
                 text = line.original,

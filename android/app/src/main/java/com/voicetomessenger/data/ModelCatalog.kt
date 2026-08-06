@@ -11,6 +11,11 @@ data class CatalogModel(
     /** Цена как её показывает провайдер: «$0.15 / $0.60 за 1M» или «$0.003 / мин». */
     val price: String,
     val note: String,
+    /**
+     * Только у потоковых моделей: `translate` — модель переводит и озвучивает сама,
+     * `transcribe` (и пусто) — только распознаёт, перевод и озвучка отдельными моделями.
+     */
+    val mode: String = "",
 )
 
 /**
@@ -83,6 +88,7 @@ data class ModelCatalog(
             tier = obj.optString("tier"),
             price = obj.optString("price"),
             note = obj.optString("note"),
+            mode = obj.optString("mode"),
         )
 
         private fun <T> JSONArray?.mapObjects(transform: (JSONObject) -> T): List<T> =

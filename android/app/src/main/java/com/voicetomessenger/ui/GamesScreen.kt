@@ -71,6 +71,7 @@ fun GamesScreen(
     onOpen2048: () -> Unit,
     onOpenSchulte: () -> Unit,
     onOpenStroop: () -> Unit,
+    navBar: @Composable () -> Unit,
 ) {
     val best by viewModel.gameBest.collectAsState()
     val schulte by viewModel.schulteResults.collectAsState()
@@ -96,6 +97,7 @@ fun GamesScreen(
                     },
                 )
             },
+            bottomBar = navBar,
             contentWindowInsets = WindowInsets.safeDrawing,
         ) { innerPadding ->
             LazyVerticalGrid(

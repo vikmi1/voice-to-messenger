@@ -146,6 +146,14 @@
     <string name="cd_games">Игры</string>
     <string name="cd_live">Живой перевод</string>
 
+    <!-- Нижняя панель навигации. Подписи короткие: их шесть в ряд на ширину экрана. -->
+    <string name="nav_main">Запись</string>
+    <string name="nav_live">Перевод</string>
+    <string name="nav_games">Игры</string>
+    <string name="nav_notes">Заметки</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="nav_admin">Сервер</string>
+
     <!-- Живой перевод -->
     <string name="live_title">Живой перевод</string>
     <string name="live_translate_to">Переводить на</string>

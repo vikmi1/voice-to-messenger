@@ -50,7 +50,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(viewModel: MainViewModel, onBack: () -> Unit) {
+fun NotesScreen(viewModel: MainViewModel, onBack: () -> Unit, navBar: @Composable () -> Unit) {
     val notes by viewModel.notes.collectAsState()
 
     // Заметку правим и удаляем через диалоги: восстановить удалённую нечем,
@@ -77,6 +77,7 @@ fun NotesScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 },
             )
         },
+        bottomBar = navBar,
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { innerPadding ->
         if (notes.isEmpty()) {

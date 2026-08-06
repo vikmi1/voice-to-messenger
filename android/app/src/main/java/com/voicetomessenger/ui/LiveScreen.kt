@@ -95,7 +95,7 @@ private val MIC_STAGE = 120.dp
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LiveScreen(viewModel: LiveViewModel, onBack: () -> Unit) {
+fun LiveScreen(viewModel: LiveViewModel, onBack: () -> Unit, navBar: @Composable () -> Unit) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -141,6 +141,7 @@ fun LiveScreen(viewModel: LiveViewModel, onBack: () -> Unit) {
                 )
             },
             snackbarHost = { SnackbarHost(snackbar) },
+            bottomBar = navBar,
             contentWindowInsets = WindowInsets.safeDrawing,
         ) { innerPadding ->
             Column(

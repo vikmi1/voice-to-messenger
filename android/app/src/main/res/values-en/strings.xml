@@ -141,6 +141,14 @@
     <string name="cd_games">Games</string>
     <string name="cd_live">Live translation</string>
 
+    <!-- Bottom navigation. Labels are short: six of them share the screen width. -->
+    <string name="nav_main">Record</string>
+    <string name="nav_live">Translate</string>
+    <string name="nav_games">Games</string>
+    <string name="nav_notes">Notes</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_admin">Server</string>
+
     <!-- Live translation -->
     <string name="live_title">Live translation</string>
     <string name="live_translate_to">Translate into</string>

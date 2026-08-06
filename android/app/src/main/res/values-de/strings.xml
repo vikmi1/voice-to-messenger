@@ -141,6 +141,14 @@
     <string name="cd_games">Spiele</string>
     <string name="cd_live">Live-Übersetzung</string>
 
+    <!-- Untere Navigationsleiste. Kurze Beschriftungen: sechs teilen sich die Bildschirmbreite. -->
+    <string name="nav_main">Aufnahme</string>
+    <string name="nav_live">Übersetzen</string>
+    <string name="nav_games">Spiele</string>
+    <string name="nav_notes">Notizen</string>
+    <string name="nav_settings">Optionen</string>
+    <string name="nav_admin">Server</string>
+
     <!-- Live-Übersetzung -->
     <string name="live_title">Live-Übersetzung</string>
     <string name="live_translate_to">Übersetzen nach</string>

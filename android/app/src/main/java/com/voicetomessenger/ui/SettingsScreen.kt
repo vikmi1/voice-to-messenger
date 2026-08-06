@@ -69,7 +69,12 @@ import com.voicetomessenger.data.ProcessingMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: () -> Unit) {
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    onBack: () -> Unit,
+    onOpenAdmin: () -> Unit,
+    navBar: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     val settings by viewModel.settings.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -106,6 +111,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit, onOpenAdmin: ()
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = navBar,
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { innerPadding ->
         Column(

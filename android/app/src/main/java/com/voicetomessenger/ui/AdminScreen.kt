@@ -70,7 +70,7 @@ private val TABS = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminScreen(viewModel: AdminViewModel, onBack: () -> Unit) {
+fun AdminScreen(viewModel: AdminViewModel, onBack: () -> Unit, navBar: @Composable () -> Unit) {
     val state by viewModel.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var tab by rememberSaveable { mutableStateOf(0) }
@@ -95,6 +95,7 @@ fun AdminScreen(viewModel: AdminViewModel, onBack: () -> Unit) {
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = navBar,
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { innerPadding ->
         Column(Modifier.padding(innerPadding).fillMaxSize()) {

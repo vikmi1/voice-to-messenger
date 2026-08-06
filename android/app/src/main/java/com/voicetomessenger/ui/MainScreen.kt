@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -43,18 +44,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.rounded.BookmarkAdd
-import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -122,14 +119,12 @@ private val MIC_SIZE = 96.dp
 private val MIC_STAGE_HEIGHT = 132.dp
 private val SIDE_ACTION_SIZE = 60.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
-    onOpenNotes: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenGames: () -> Unit,
-    onOpenLive: () -> Unit,
+    navBar: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val capture by viewModel.capture.collectAsState()
@@ -180,29 +175,11 @@ fun MainScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
+                // Переходы по экранам живут в нижней панели — сюда, под большой палец,
+                // они и переехали с верхней строки.
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    actions = {
-                        IconButton(onClick = onOpenLive) {
-                            Icon(
-                                Icons.Rounded.Translate,
-                                contentDescription = stringResource(R.string.cd_live),
-                            )
-                        }
-                        IconButton(onClick = onOpenGames) {
-                            Icon(Icons.Rounded.Casino, contentDescription = stringResource(R.string.cd_games))
-                        }
-                        IconButton(onClick = onOpenNotes) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.List,
-                                contentDescription = stringResource(R.string.cd_notes),
-                            )
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.cd_settings))
-                        }
-                    },
                 )
             },
             snackbarHost = { SnackbarHost(snackbar) },
@@ -210,11 +187,17 @@ fun MainScreen(
             // сам поднимается над клавиатурой; Scaffold ужимает контент ровно на его высоту.
             contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
-                // Поле правки «прилипает» к низу и едет вверх вместе с клавиатурой (как в мессенджере).
-                when (val state = capture) {
-                    is CaptureState.Processing -> ResultComposer(state.text, busy = true, viewModel = viewModel)
-                    is CaptureState.Done -> ResultComposer(state.text, busy = false, viewModel = viewModel, spentCredits = spentCredits)
-                    else -> Unit
+                Column {
+                    // Поле правки «прилипает» к низу и едет вверх вместе с клавиатурой (как в мессенджере).
+                    when (val state = capture) {
+                        is CaptureState.Processing -> ResultComposer(state.text, busy = true, viewModel = viewModel)
+                        is CaptureState.Done -> ResultComposer(state.text, busy = false, viewModel = viewModel, spentCredits = spentCredits)
+                        else -> Unit
+                    }
+                    // Пока правят текст, панель навигации только отнимает место у клавиатуры.
+                    if (!WindowInsets.isImeVisible) {
+                        navBar()
+                    }
                 }
             },
         ) { innerPadding ->

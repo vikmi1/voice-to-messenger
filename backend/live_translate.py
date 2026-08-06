@@ -310,6 +310,10 @@ class Bridge:
         self.audio_language: str | None = None
         self.previous_original = ""
         self.unit_no = 0
+        # Запрошен ли уже хвост текущей фразы (`input_audio.flush`). Сбрасывается
+        # новой порцией звука. True на старте, хотя ничего не просили: флашить
+        # пустой буфер нельзя — распознавание отвечает на это ошибкой и рвёт связь.
+        self.flushed = True
         self.stopping = False
         # Попросили ли распознавание закончить. Отличает «кусок закрыт» от «сессия
         # закончилась»: событие `transcription.done` приходит и там, и там.
@@ -512,9 +516,10 @@ class Bridge:
                     # Досылаем «аудио кончилось»: модель отдаст остаток текста и закроет поток.
                     self.ending = True
                     try:
-                        # Пустой буфер флашить нельзя — распознавание отвечает на это
-                        # ошибкой и рвёт связь. Если человек так и не заговорил, сразу end.
-                        if self.ledger.audio_bytes:
+                        # Флашим только недослушанный хвост: если после прошлого flush
+                        # звука не было, буфер пуст — а на пустой буфер распознавание
+                        # отвечает ошибкой, и она выскочит в приложении сразу после «стоп».
+                        if not self.flushed:
                             await upstream.send(json.dumps({"type": "input_audio.flush"}))
                         await upstream.send(json.dumps({"type": "input_audio.end"}))
                         await asyncio.wait_for(pump, timeout=8)
@@ -577,12 +582,6 @@ class Bridge:
         # Отдельно от last_audio: тот сдвигает и служебная тишина keepalive, а здесь
         # нужен именно последний звук живой речи.
         last_voice = time.monotonic()
-        # Просили ли уже отдать хвост текущей фразы. Сбрасывается новой речью.
-        #
-        # True на старте, хотя ничего ещё не просили: между «сессия готова» и первым
-        # словом человека проходит больше _VOICE_TAIL_S, и с False мы просили бы
-        # распознавание дослать хвост пустого буфера — ещё до первой порции звука.
-        flushed = True
         while not self.stopping:
             try:
                 message = await asyncio.wait_for(inbox.get(), timeout=0.3)
@@ -596,7 +595,7 @@ class Bridge:
                 if isinstance(message, (bytes, bytearray)):
                     self.ledger.audio_bytes += len(message)
                     last_audio = last_voice = time.monotonic()
-                    flushed = False
+                    self.flushed = False
                     await self._append_audio(upstream, bytes(message))
                 elif not self._on_command(message):
                     return
@@ -608,8 +607,8 @@ class Bridge:
                 # отдать его сразу — иначе таймер ниже закрыл бы кусок раньше, и хвост
                 # приехал бы отдельной репликой («…and I am very glad to» | «meet you
                 # today»), которую и переводить приходится дважды, и звучит она рвано.
-                if not flushed:
-                    flushed = True
+                if not self.flushed:
+                    self.flushed = True
                     await upstream.send(json.dumps({"type": "input_audio.flush"}))
 
                 # Пауза закрывает фразу: ждать точку от молчащего смысла нет.

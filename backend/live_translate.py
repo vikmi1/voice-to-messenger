@@ -438,7 +438,15 @@ class Bridge:
         except Exception:  # noqa: BLE001 — клиент отвалился
             pass
         finally:
-            loop.call_soon_threadsafe(inbox.put_nowait, None)
+            try:
+                loop.call_soon_threadsafe(inbox.put_nowait, None)
+            except RuntimeError:
+                # «Event loop is closed» — сессия кончилась раньше, чем поток вышел
+                # из своего receive(timeout=1), и будить уже некого. Сказать об этом
+                # было нечем: поток демонский, и traceback падал прямо в лог сервера
+                # на КАЖДОЙ сессии. За этим шумом 07.08.2026 не сразу нашлась
+                # настоящая ошибка живого перевода.
+                pass
 
     # -- перевод и озвучка ----------------------------------------------
 

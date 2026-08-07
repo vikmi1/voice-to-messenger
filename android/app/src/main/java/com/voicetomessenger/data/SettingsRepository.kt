@@ -36,6 +36,7 @@ class SettingsRepository(context: Context) {
         val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val ADMIN_TOKEN = stringPreferencesKey("admin_token")
         val LIVE_TARGET_LANG = stringPreferencesKey("live_target_lang")
+        val LIVE_SOURCE_LANG = stringPreferencesKey("live_source_lang")
         val LIVE_SPEAK = booleanPreferencesKey("live_speak")
         val OPTIONS_JSON = stringPreferencesKey("options_json")
         val GAME_BEST = intPreferencesKey("game_best")
@@ -82,6 +83,7 @@ class SettingsRepository(context: Context) {
             soundEnabled = prefs[Keys.SOUND_ENABLED] ?: defaults.soundEnabled,
             adminToken = prefs[Keys.ADMIN_TOKEN] ?: defaults.adminToken,
             liveTargetLang = prefs[Keys.LIVE_TARGET_LANG] ?: defaults.liveTargetLang,
+            liveSourceLang = prefs[Keys.LIVE_SOURCE_LANG] ?: defaults.liveSourceLang,
             liveSpeak = prefs[Keys.LIVE_SPEAK] ?: defaults.liveSpeak,
         )
     }
@@ -126,6 +128,9 @@ class SettingsRepository(context: Context) {
     suspend fun setAdminToken(token: String) = store.edit { it[Keys.ADMIN_TOKEN] = token.trim() }
 
     suspend fun setLiveTargetLang(code: String) = store.edit { it[Keys.LIVE_TARGET_LANG] = code }
+
+    /** Пустая строка — язык говорящего определяет модель. */
+    suspend fun setLiveSourceLang(code: String) = store.edit { it[Keys.LIVE_SOURCE_LANG] = code }
 
     suspend fun setLiveSpeak(enabled: Boolean) = store.edit { it[Keys.LIVE_SPEAK] = enabled }
 

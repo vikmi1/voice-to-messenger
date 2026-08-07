@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -76,6 +77,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.voicetomessenger.R
@@ -149,11 +151,13 @@ fun LiveScreen(viewModel: LiveViewModel, onBack: () -> Unit, navBar: @Composable
                     .padding(innerPadding)
                     .fillMaxSize(),
             ) {
-                TargetLanguageBar(
+                LanguageBar(
                     targetLang = state.targetLang,
+                    sourceLang = state.sourceLang,
                     speak = state.speak,
-                    // Язык на ходу менять можно — сервер подхватит со следующей фразы.
-                    onSelectLang = viewModel::setTargetLang,
+                    // Языки на ходу менять можно — сервер подхватит со следующей фразы.
+                    onSelectTarget = viewModel::setTargetLang,
+                    onSelectSource = viewModel::setSourceLang,
                     onToggleSpeak = viewModel::setSpeak,
                 )
 
@@ -184,10 +188,12 @@ fun LiveScreen(viewModel: LiveViewModel, onBack: () -> Unit, navBar: @Composable
 // --- Верхняя полоса ---------------------------------------------------------
 
 @Composable
-private fun TargetLanguageBar(
+private fun LanguageBar(
     targetLang: String,
+    sourceLang: String,
     speak: Boolean,
-    onSelectLang: (String) -> Unit,
+    onSelectTarget: (String) -> Unit,
+    onSelectSource: (String) -> Unit,
     onToggleSpeak: (Boolean) -> Unit,
 ) {
     Row(
@@ -197,10 +203,22 @@ private fun TargetLanguageBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // «С» слева, «на» справа — в порядке чтения. Обе колонки по weight(1f):
+        // названия языков разной длины, и без этого полоса прыгала бы при выборе.
+        Column(Modifier.weight(1f)) {
+            SectionLabel(stringResource(R.string.live_translate_from))
+            Spacer(Modifier.height(6.dp))
+            LanguageDropdown(
+                selected = sourceLang,
+                codes = LiveLanguage.SOURCE_CODES,
+                onSelect = onSelectSource,
+            )
+        }
+
         Column(Modifier.weight(1f)) {
             SectionLabel(stringResource(R.string.live_translate_to))
             Spacer(Modifier.height(6.dp))
-            LanguageDropdown(selected = targetLang, onSelect = onSelectLang)
+            LanguageDropdown(selected = targetLang, onSelect = onSelectTarget)
         }
 
         // Озвучка — переключатель-иконка, а не Switch с подписью: место наверху дорогое,
@@ -239,7 +257,11 @@ private fun TargetLanguageBar(
 }
 
 @Composable
-private fun LanguageDropdown(selected: String, onSelect: (String) -> Unit) {
+private fun LanguageDropdown(
+    selected: String,
+    onSelect: (String) -> Unit,
+    codes: List<String> = LiveLanguage.CODES,
+) {
     var expanded by remember { mutableStateOf(false) }
     val names = liveLanguageNames()
 
@@ -256,6 +278,11 @@ private fun LanguageDropdown(selected: String, onSelect: (String) -> Unit) {
                 text = names[selected] ?: selected,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                // Двадцать языков — среди них «Нидерландский»; в две колонки такое
+                // не влезает, а перенос строки распирал бы полосу по высоте.
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.width(6.dp))
             Icon(
@@ -264,8 +291,14 @@ private fun LanguageDropdown(selected: String, onSelect: (String) -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            LiveLanguage.CODES.forEach { code ->
+        // Список длинный — ограничиваем высоту, иначе меню накрывает пол-экрана
+        // и до нижних языков не долистать.
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 360.dp),
+        ) {
+            codes.forEach { code ->
                 DropdownMenuItem(
                     text = { Text(names[code] ?: code) },
                     onClick = {
@@ -281,11 +314,27 @@ private fun LanguageDropdown(selected: String, onSelect: (String) -> Unit) {
 /** Названия языков из ресурсов: список должен говорить на языке интерфейса. */
 @Composable
 private fun liveLanguageNames(): Map<String, String> = mapOf(
+    LiveLanguage.AUTO to stringResource(R.string.lang_auto),
     "ru" to stringResource(R.string.lang_ru),
     "de" to stringResource(R.string.lang_de),
     "en" to stringResource(R.string.lang_en),
+    "uk" to stringResource(R.string.lang_uk),
+    "pl" to stringResource(R.string.lang_pl),
+    "tr" to stringResource(R.string.lang_tr),
     "it" to stringResource(R.string.lang_it),
+    "es" to stringResource(R.string.lang_es),
+    "fr" to stringResource(R.string.lang_fr),
+    "pt" to stringResource(R.string.lang_pt),
+    "nl" to stringResource(R.string.lang_nl),
+    "cs" to stringResource(R.string.lang_cs),
+    "ro" to stringResource(R.string.lang_ro),
+    "sv" to stringResource(R.string.lang_sv),
+    "el" to stringResource(R.string.lang_el),
+    "ar" to stringResource(R.string.lang_ar),
     "zh" to stringResource(R.string.lang_zh),
+    "ja" to stringResource(R.string.lang_ja),
+    "ko" to stringResource(R.string.lang_ko),
+    "hi" to stringResource(R.string.lang_hi),
 )
 
 // --- Лента ------------------------------------------------------------------

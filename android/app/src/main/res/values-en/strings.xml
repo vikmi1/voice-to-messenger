@@ -66,6 +66,22 @@
     <string name="lang_en">English</string>
     <string name="lang_it">Italian</string>
     <string name="lang_zh">Chinese</string>
+    <string name="lang_auto">Automatic</string>
+    <string name="lang_uk">Ukrainian</string>
+    <string name="lang_pl">Polish</string>
+    <string name="lang_tr">Turkish</string>
+    <string name="lang_es">Spanish</string>
+    <string name="lang_fr">French</string>
+    <string name="lang_pt">Portuguese</string>
+    <string name="lang_nl">Dutch</string>
+    <string name="lang_cs">Czech</string>
+    <string name="lang_ro">Romanian</string>
+    <string name="lang_sv">Swedish</string>
+    <string name="lang_el">Greek</string>
+    <string name="lang_ar">Arabic</string>
+    <string name="lang_ja">Japanese</string>
+    <string name="lang_ko">Korean</string>
+    <string name="lang_hi">Hindi</string>
 
     <string name="raw_show">Show original text</string>
     <string name="raw_hide">Hide original text</string>
@@ -152,6 +168,7 @@
     <!-- Live translation -->
     <string name="live_title">Live translation</string>
     <string name="live_translate_to">Translate into</string>
+    <string name="live_translate_from">Translate from</string>
     <string name="live_speak_on">Voice output on</string>
     <string name="live_speak_off">Voice output off</string>
     <string name="live_no_headset">No headphones: the mic stays muted while the translation is spoken</string>

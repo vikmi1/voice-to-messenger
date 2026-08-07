@@ -366,8 +366,9 @@ def _live_session(ws, fail) -> None:
     # и `translate` тут законно пустой (см. live_translate.resolve).
     translate = parts.get("translate")
     app.logger.info(
-        "live: session=%s mode=%s lang=%s speak=%s stt=%s/%s translate=%s",
-        session_id, parts["mode"], hello.get("target_lang"), hello.get("speak"),
+        "live: session=%s mode=%s %s→%s speak=%s stt=%s/%s translate=%s",
+        session_id, parts["mode"], hello.get("source_lang") or "авто",
+        hello.get("target_lang"), hello.get("speak"),
         parts["stt"]["provider"], parts["stt"]["model"],
         f"{translate['provider']}/{translate['model']}" if translate else "—",
     )
@@ -375,6 +376,7 @@ def _live_session(ws, fail) -> None:
         ws, parts, session_id,
         target_lang=hello.get("target_lang") or "ru",
         speak=bool(hello.get("speak")),
+        source_lang=hello.get("source_lang") or live_translate.AUTO_SOURCE,
     )
     app.logger.info("live: session=%s closed", session_id)
 

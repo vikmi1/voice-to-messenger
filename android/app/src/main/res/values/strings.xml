@@ -68,6 +68,22 @@
     <string name="lang_en">Английский</string>
     <string name="lang_it">Итальянский</string>
     <string name="lang_zh">Китайский</string>
+    <string name="lang_auto">Автоматически</string>
+    <string name="lang_uk">Украинский</string>
+    <string name="lang_pl">Польский</string>
+    <string name="lang_tr">Турецкий</string>
+    <string name="lang_es">Испанский</string>
+    <string name="lang_fr">Французский</string>
+    <string name="lang_pt">Португальский</string>
+    <string name="lang_nl">Нидерландский</string>
+    <string name="lang_cs">Чешский</string>
+    <string name="lang_ro">Румынский</string>
+    <string name="lang_sv">Шведский</string>
+    <string name="lang_el">Греческий</string>
+    <string name="lang_ar">Арабский</string>
+    <string name="lang_ja">Японский</string>
+    <string name="lang_ko">Корейский</string>
+    <string name="lang_hi">Хинди</string>
 
     <string name="raw_show">Показать исходный текст</string>
     <string name="raw_hide">Скрыть исходный текст</string>
@@ -157,6 +173,7 @@
     <!-- Живой перевод -->
     <string name="live_title">Живой перевод</string>
     <string name="live_translate_to">Переводить на</string>
+    <string name="live_translate_from">Переводить с</string>
     <string name="live_speak_on">Озвучка включена</string>
     <string name="live_speak_off">Озвучка выключена</string>
     <string name="live_no_headset">Наушники не подключены: во время озвучки микрофон не слушает</string>

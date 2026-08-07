@@ -53,6 +53,8 @@ enum class LiveStatus {
 data class LiveUiState(
     val status: LiveStatus = LiveStatus.IDLE,
     val targetLang: String = LiveLanguage.DEFAULT,
+    /** Язык говорящего, заданный человеком. Пусто — определяет модель. */
+    val sourceLang: String = LiveLanguage.AUTO,
     val speak: Boolean = true,
     /** Код языка говорящего, определённый моделью. */
     val detectedLanguage: String? = null,
@@ -103,6 +105,7 @@ class LiveViewModel(private val container: AppContainer) : ViewModel() {
             _state.update {
                 it.copy(
                     targetLang = settings.liveTargetLang,
+                    sourceLang = settings.liveSourceLang,
                     speak = settings.liveSpeak,
                     headset = player.headsetConnected(),
                 )
@@ -120,15 +123,28 @@ class LiveViewModel(private val container: AppContainer) : ViewModel() {
     fun setTargetLang(code: String) {
         _state.update { it.copy(targetLang = code) }
         viewModelScope.launch { container.settings.setLiveTargetLang(code) }
-        connection?.reconfigure(code, _state.value.speak)
+        push()
+    }
+
+    /** Пустой код — язык говорящего снова определяет модель. */
+    fun setSourceLang(code: String) {
+        _state.update { it.copy(sourceLang = code) }
+        viewModelScope.launch { container.settings.setLiveSourceLang(code) }
+        push()
     }
 
     fun setSpeak(enabled: Boolean) {
         // Заодно пересматриваем наушники: их обычно и подключают, увидев подсказку.
         _state.update { it.copy(speak = enabled, headset = player.headsetConnected()) }
         viewModelScope.launch { container.settings.setLiveSpeak(enabled) }
-        connection?.reconfigure(_state.value.targetLang, enabled)
+        push()
         if (!enabled) player.clear()
+    }
+
+    /** Досылает текущие настройки в открытую сессию — переподключаться не нужно. */
+    private fun push() {
+        val state = _state.value
+        connection?.reconfigure(state.targetLang, state.sourceLang, state.speak)
     }
 
     private fun start() {
@@ -160,7 +176,7 @@ class LiveViewModel(private val container: AppContainer) : ViewModel() {
 
     private suspend fun runSession() {
         val current = _state.value
-        val live = runCatching { client.open(current.targetLang, current.speak) }
+        val live = runCatching { client.open(current.targetLang, current.sourceLang, current.speak) }
             .getOrElse { error ->
                 _messages.tryEmit(error.message ?: string(R.string.err_live_connection))
                 finish()

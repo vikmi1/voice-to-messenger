@@ -83,8 +83,12 @@ class LiveTranslateClient(
         .pingInterval(20, TimeUnit.SECONDS)
         .build()
 
-    /** Открывает сессию. Звук можно слать после [LiveEvent.Ready]. */
-    suspend fun open(targetLang: String, speak: Boolean): LiveConnection {
+    /**
+     * Открывает сессию. Звук можно слать после [LiveEvent.Ready].
+     *
+     * [sourceLang] пустой — язык говорящего определяет модель.
+     */
+    suspend fun open(targetLang: String, sourceLang: String, speak: Boolean): LiveConnection {
         val current = settings.current()
         if (!current.isServerConfigured) {
             throw BackendException(context.localizedString(R.string.err_server_not_configured))
@@ -94,7 +98,7 @@ class LiveTranslateClient(
             .url("$base/api/live")
             .header("Authorization", "Bearer ${current.apiToken}")
             .build()
-        return LiveConnection(http, request, targetLang, speak, context)
+        return LiveConnection(http, request, targetLang, sourceLang, speak, context)
     }
 }
 
@@ -102,6 +106,7 @@ class LiveConnection internal constructor(
     http: OkHttpClient,
     request: Request,
     targetLang: String,
+    sourceLang: String,
     speak: Boolean,
     private val context: Context,
 ) {
@@ -125,6 +130,7 @@ class LiveConnection internal constructor(
                     JSONObject()
                         .put("type", "start")
                         .put("target_lang", targetLang)
+                        .put("source_lang", sourceLang)
                         .put("speak", speak)
                         .toString(),
                 )
@@ -160,13 +166,14 @@ class LiveConnection internal constructor(
         if (!closed) socket.send(pcm.toByteString())
     }
 
-    /** Смена языка или озвучки на ходу — переподключаться не нужно. */
-    fun reconfigure(targetLang: String, speak: Boolean) {
+    /** Смена языков или озвучки на ходу — переподключаться не нужно. */
+    fun reconfigure(targetLang: String, sourceLang: String, speak: Boolean) {
         if (closed) return
         socket.send(
             JSONObject()
                 .put("type", "config")
                 .put("target_lang", targetLang)
+                .put("source_lang", sourceLang)
                 .put("speak", speak)
                 .toString(),
         )

@@ -17,10 +17,17 @@
 
 Протокол с приложением
     приложение → сервер
-        {"type":"start","target_lang":"ru","speak":true}   первым сообщением
+        {"type":"start","target_lang":"ru","source_lang":"de","speak":true}
+                                                           первым сообщением
         <binary>                                           PCM_S16LE, 16 кГц, моно
-        {"type":"config","target_lang":"de","speak":false} смена на ходу
+        {"type":"config","target_lang":"de","source_lang":"","speak":false}
+                                                           смена на ходу
         {"type":"stop"}                                    штатное завершение
+
+    `source_lang` пустой — язык говорящего определяет модель. Заданный язык до
+    распознавания НЕ доходит: такого поля нет ни у Voxtral Realtime, ни у
+    gpt-realtime-translate (проверено прямым подключением 07.08.2026). Он меняет
+    только наше поведение — промпт перевода и ветку «языки совпали».
     сервер → приложение
         {"type":"ready","limit_seconds":600}
         {"type":"language","code":"en"}          язык говорящего, определён моделью
@@ -93,14 +100,34 @@ _KEEPALIVE_S = 10.0
 _SILENCE = b"\x00" * (SAMPLE_RATE // 10 * 2)  # 100 мс тишины
 
 #: Названия языков для промпта перевода. Список закрытый — ровно то, что
-#: предлагается в приложении.
+#: предлагается в приложении (`LiveLanguage.CODES` в Settings.kt), и порядок тот же:
+#: по распространённости, чтобы частое было сверху выпадающего списка.
 LANG_NAMES = {
     "ru": "русский",
     "de": "немецкий",
     "en": "английский",
+    "uk": "украинский",
+    "pl": "польский",
+    "tr": "турецкий",
     "it": "итальянский",
+    "es": "испанский",
+    "fr": "французский",
+    "pt": "португальский",
+    "nl": "нидерландский",
+    "cs": "чешский",
+    "ro": "румынский",
+    "sv": "шведский",
+    "el": "греческий",
+    "ar": "арабский",
     "zh": "китайский",
+    "ja": "японский",
+    "ko": "корейский",
+    "hi": "хинди",
 }
+
+#: Язык говорящего не задан — пусть определяет модель. Пустая строка, а не "auto":
+#: так же выглядит отсутствие поля в старом приложении, и обе ветки сходятся сами.
+AUTO_SOURCE = ""
 
 DEFAULT_LIMIT_MINUTES = 10
 
@@ -313,25 +340,46 @@ class _Ledger:
 
 # --- Мост ------------------------------------------------------------------
 
-def _prompt(target_lang: str) -> str:
+def _prompt(target_lang: str, source_lang: str = AUTO_SOURCE) -> str:
     name = LANG_NAMES.get(target_lang, target_lang)
-    return (
-        f"Ты синхронный переводчик. Переводи реплику на {name} язык.\n"
+    lines = [f"Ты синхронный переводчик. Переводи реплику на {name} язык."]
+
+    if source_lang:
+        # Именительный падеж отдельной строкой, а не «переводи с немецкого»: склонять
+        # два десятка названий в коде — лишний источник ошибок, а модели хватает и так.
+        lines.append(f"Язык оригинала: {LANG_NAMES.get(source_lang, source_lang)}.")
+        # Ради этой строки язык источника и заводился. Voxtral, ошибившись с языком,
+        # пишет речь чужим алфавитом: немецкое «Würden Sie bitte mit mir langsam reden»
+        # приехало как «Вердан с битами, мир лангзам рейден». По звучанию это
+        # восстанавливается, если переводчик знает, что перед ним не русский.
+        lines.append(
+            "Распознавание могло записать оригинал буквами другого алфавита, "
+            "по звучанию. Читай вслух про себя и переводи то, что слышится.",
+        )
+
+    lines.append(
         "Правила: отдавай ТОЛЬКО перевод — без пояснений, без кавычек, без оригинала. "
         "Держи разговорный тон говорящего, ничего не добавляй и не сокращай. "
         "Реплика может быть оборвана на полуслове — переводи как есть, не дописывай. "
-        "Если переводить нечего, верни пустую строку."
+        "Если переводить нечего, верни пустую строку.",
     )
+    return "\n".join(lines)
 
 
 class Bridge:
     """Одна сессия живого перевода. Живёт в потоке воркера, внутри — свой цикл asyncio."""
 
-    def __init__(self, client, parts: dict, session_id: str, target_lang: str, speak: bool):
+    def __init__(self, client, parts: dict, session_id: str, target_lang: str, speak: bool,
+                 source_lang: str = AUTO_SOURCE):
         self.client = client          # WebSocket приложения (flask-sock, блокирующий)
         self.parts = parts
         self.session_id = session_id
         self.target_lang = target_lang if target_lang in LANG_NAMES else "ru"
+        # Язык говорящего, заданный человеком. Распознаванию его передать нельзя —
+        # ни Voxtral, ни gpt-realtime-translate такого поля не имеют (проверено
+        # прямым подключением 07.08.2026). Он влияет только на наши решения:
+        # промпт перевода и ветку «языки совпали», см. _translate_worker.
+        self.source_lang = source_lang if source_lang in LANG_NAMES else AUTO_SOURCE
         # Что просило приложение и что мы реально можем — разные вещи: без модели
         # синтеза в конфиге озвучки не будет, и об этом надо сказать вслух.
         self.speak_requested = bool(speak)
@@ -396,9 +444,17 @@ class Bridge:
             unit_id, original = item
 
             # Говорят на том же языке, на который переводим, — платить не за что.
-            same = self.audio_language is not None and self.audio_language.lower().startswith(
-                self.target_lang,
-            )
+            #
+            # Догадке модели верим только пока человек молчит о языке. 07.08.2026
+            # Voxtral принял немецкую речь за русскую и записал её кириллицей —
+            # эта ветка сочла, что переводить нечего, и отправила расшифровку
+            # в ленту как готовый перевод. Явно заданный язык главнее догадки.
+            if self.source_lang:
+                same = self.source_lang == self.target_lang
+            else:
+                same = self.audio_language is not None and (
+                    self.audio_language.lower().startswith(self.target_lang)
+                )
             if same:
                 self._send({"type": "translation", "id": unit_id, "text": original,
                             "same_language": True})
@@ -416,7 +472,7 @@ class Bridge:
             try:
                 result = await loop.run_in_executor(
                     None, complete, part["base_url"], part["api_key"], part["model"],
-                    _prompt(self.target_lang), user,
+                    _prompt(self.target_lang, self.source_lang), user,
                 )
             except Exception as exc:  # noqa: BLE001 — один кусок не должен ронять сессию
                 log.warning("live translate failed: %s", exc)
@@ -685,6 +741,9 @@ class Bridge:
             lang = data.get("target_lang")
             if lang in LANG_NAMES:
                 self.target_lang = lang
+            if "source_lang" in data:
+                source = data["source_lang"] or AUTO_SOURCE
+                self.source_lang = source if source in LANG_NAMES else AUTO_SOURCE
             if "speak" in data:
                 self.speak = bool(data["speak"]) and self.parts.get("tts") is not None
         return True
@@ -735,8 +794,9 @@ class SoloBridge(Bridge):
     #: Частота, которую ждёт эндпоинт.
     UPSTREAM_RATE = 24_000
 
-    def __init__(self, client, parts: dict, session_id: str, target_lang: str, speak: bool):
-        super().__init__(client, parts, session_id, target_lang, speak)
+    def __init__(self, client, parts: dict, session_id: str, target_lang: str, speak: bool,
+                 source_lang: str = AUTO_SOURCE):
+        super().__init__(client, parts, session_id, target_lang, speak, source_lang)
         # Модель озвучивает всегда; тумблер в приложении решает только, слать ли звук ему.
         self.speak = self.speak_requested
         self.assembler = _Assembler(_SOLO_UNIT_SILENCE_S)
@@ -1009,7 +1069,8 @@ def _decode(raw) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def serve(client, parts: dict, session_id: str, target_lang: str, speak: bool) -> None:
+def serve(client, parts: dict, session_id: str, target_lang: str, speak: bool,
+          source_lang: str = AUTO_SOURCE) -> None:
     """Точка входа из Flask: своя петля asyncio на время сессии.
 
     Мост выбирается по режиму модели распознавания: `translate` — одна модель на всё
@@ -1021,4 +1082,4 @@ def serve(client, parts: dict, session_id: str, target_lang: str, speak: bool) -
         client.sock = _OneWriterSocket(raw)
 
     kind = SoloBridge if parts.get("mode") == "translate" else Bridge
-    asyncio.run(kind(client, parts, session_id, target_lang, speak).run())
+    asyncio.run(kind(client, parts, session_id, target_lang, speak, source_lang).run())

@@ -313,6 +313,13 @@ def api_live(ws):
     HTTP-ответа, которым можно отказать, — об отказе сообщаем сообщением в сокете.
     Соединение занимает поток воркера на всю сессию (их 8: 2 воркера × 4 потока),
     поэтому потолок длины сессии — не только про деньги.
+
+    **Отсюда не должно вылетать ни одно исключение.** Рукопожатие WebSocket к моменту
+    вызова уже прошло, и Flask на исключении пишет в тот же сокет обычный HTTP-ответ
+    «500». Приложение читает его как кадры: первый байт «H» это 0x48 — бит FIN нулевой,
+    опкод 8 = CLOSE, то есть управляющий кадр, который не финальный. okhttp падает с
+    «Control frames must be final.», и настоящая причина не доходит вовсе. Именно так
+    07.08.2026 пряталась опечатка на одну строку ниже.
     """
     def fail(message: str) -> None:
         # Пробуем сказать причину; если сокет уже мёртв, молча закрываемся.
@@ -321,6 +328,15 @@ def api_live(ws):
         except Exception:  # noqa: BLE001
             pass
 
+    try:
+        _live_session(ws, fail)
+    except Exception as exc:  # noqa: BLE001 — см. про «Control frames must be final» выше
+        app.logger.error("live: сессия упала: %s", exc, exc_info=True)
+        fail(f"Внутренняя ошибка сервера: {exc}")
+
+
+def _live_session(ws, fail) -> None:
+    """Тело живой сессии. Падать может — за это отвечает [api_live]."""
     cfg = config_store.load()
     header = request.headers.get("Authorization", "")
     token = header[7:] if header.startswith("Bearer ") else ""
@@ -346,11 +362,14 @@ def api_live(ws):
         return
 
     session_id = uuid.uuid4().hex
+    # В режиме одной модели отдельной модели перевода нет — она переводит сама,
+    # и `translate` тут законно пустой (см. live_translate.resolve).
+    translate = parts.get("translate")
     app.logger.info(
-        "live: session=%s lang=%s speak=%s stt=%s/%s translate=%s/%s",
-        session_id, hello.get("target_lang"), hello.get("speak"),
+        "live: session=%s mode=%s lang=%s speak=%s stt=%s/%s translate=%s",
+        session_id, parts["mode"], hello.get("target_lang"), hello.get("speak"),
         parts["stt"]["provider"], parts["stt"]["model"],
-        parts["translate"]["provider"], parts["translate"]["model"],
+        f"{translate['provider']}/{translate['model']}" if translate else "—",
     )
     live_translate.serve(
         ws, parts, session_id,

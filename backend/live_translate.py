@@ -957,6 +957,42 @@ def _error_text(event: dict) -> str:
     return str(detail.get("message") if isinstance(detail, dict) else detail)
 
 
+class _OneWriterSocket:
+    """Сокет приложения, в который пишут по одному и всегда целиком.
+
+    В этот сокет пишем не только мы. У simple_websocket есть свой фоновый поток:
+    он отвечает понгами на пинги приложения (okhttp шлёт их раз в 20 с) и раз в 25 с
+    шлёт собственные пинги — `SOCK_SERVER_OPTIONS` в app.py. Библиотека этих двух
+    писателей никак не разводит, и `Base.send` зовёт `sock.send`, который вправе
+    записать меньше, чем просили.
+
+    Пока кадры были мелкие, это сходило с рук: каждый укладывался в буфер сокета
+    целиком и с первого раза. В режиме одной модели мы шлём 25 КБ озвучки каждые
+    0.4 с, буфер переполняется, и `send` засыпает посреди кадра. Linux на время
+    ожидания отпускает замок сокета — фоновый поток дописывает туда же свой пинг,
+    прямо в середину нашего кадра. Приложение читает байты озвучки как заголовок
+    следующего кадра и рвёт связь: «Control frames must be final.».
+
+    Воспроизведено: 07.08.2026 наш поток сидел внутри `send(32010 B)`, когда
+    `simple_websocket.Base._thread` вошёл в `send` со своими 2 байтами пинга.
+    """
+
+    def __init__(self, raw) -> None:
+        self._raw = raw
+        self._lock = threading.Lock()
+
+    def send(self, data) -> int:
+        # sendall, а не send: последний вправе записать часть и молча потерять хвост,
+        # а обрезанный кадр ломает поток ничуть не мягче чужих байтов в середине.
+        with self._lock:
+            self._raw.sendall(data)
+        return len(data)
+
+    def __getattr__(self, name):
+        # Всё остальное — recv, fileno, close — уходит в настоящий сокет как есть.
+        return getattr(self._raw, name)
+
+
 class _Nothing:
     """Метка «сообщений не было» — отличает таймаут от закрытого сокета (None)."""
 
@@ -979,5 +1015,10 @@ def serve(client, parts: dict, session_id: str, target_lang: str, speak: bool) -
     Мост выбирается по режиму модели распознавания: `translate` — одна модель на всё
     (диалект OpenAI), иначе три модели (диалект Mistral). См. catalog.realtime_mode.
     """
+    # Первым делом закрываем сокет от второго писателя — см. _OneWriterSocket.
+    raw = getattr(client, "sock", None)
+    if raw is not None and not isinstance(raw, _OneWriterSocket):
+        client.sock = _OneWriterSocket(raw)
+
     kind = SoloBridge if parts.get("mode") == "translate" else Bridge
     asyncio.run(kind(client, parts, session_id, target_lang, speak).run())

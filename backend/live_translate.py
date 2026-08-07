@@ -92,6 +92,12 @@ _UNIT_MIN_CHARS = 12
 
 _SENTENCE_END = ".!?…。！？"
 
+#: Как быстро Voxtral отдаёт распознанное. Замер 07.08.2026 на одной фразе, прямым
+#: подключением: не задан — первый текст через 1.39 с, 200 мс — через 1.17, 500 мс —
+#: 1.48, 1000 мс — 1.88. **Ноль ставить нельзя**: сессия падает с «1011 Upstream
+#: connection error». Хвост после `flush` от ручки не зависит и держится около 0.3 с.
+_STREAMING_DELAY_MS = 200
+
 #: Как часто пересчитывать и слать в приложение накопленную стоимость сессии.
 _CREDITS_EVERY_S = 5.0
 
@@ -388,6 +394,11 @@ class Bridge:
         self.ledger = _Ledger(parts)
         self.assembler = _Assembler()
         self.units: asyncio.Queue = asyncio.Queue()
+        # Синтез вынесен в свою очередь, чтобы не держать перевод. Замер 07.08.2026:
+        # фраза закрывалась на +0.99 с, а переводить её начинали только на +1.66 —
+        # воркер стоял в ожидании mp3 предыдущей фразы. Порядок при этом не страдает:
+        # внутри каждой очереди всё по-прежнему строго последовательно.
+        self.speech: asyncio.Queue = asyncio.Queue()
         self.audio_language: str | None = None
         self.previous_original = ""
         self.unit_no = 0
@@ -435,11 +446,13 @@ class Bridge:
         """Переводит куски строго по очереди.
 
         Последовательно, а не параллельно: иначе фразы приезжали бы в наушник
-        вперемешку, а на слух это хуже, чем лишняя секунда задержки.
+        вперемешку, а на слух это хуже, чем лишняя секунда задержки. А вот синтез
+        ждать незачем — он живёт в [_speech_worker] и идёт следующей фразе внахлёст.
         """
         while True:
             item = await self.units.get()
             if item is None:
+                self.speech.put_nowait(None)
                 return
             unit_id, original = item
 
@@ -485,7 +498,15 @@ class Bridge:
             self._send({"type": "translation", "id": unit_id, "text": text})
 
             if text and self.speak:
-                await self._speak(loop, unit_id, text)
+                self.speech.put_nowait((unit_id, text))
+
+    async def _speech_worker(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Озвучивает переводы по одному, в том порядке, в каком они пришли."""
+        while True:
+            item = await self.speech.get()
+            if item is None:
+                return
+            await self._speak(loop, *item)
 
     async def _speak(self, loop: asyncio.AbstractEventLoop, unit_id: int, text: str) -> None:
         part = self.parts["tts"]
@@ -598,6 +619,7 @@ class Bridge:
                     )})
 
                 worker = asyncio.create_task(self._translate_worker(loop))
+                speaker = asyncio.create_task(self._speech_worker(loop))
                 pump = asyncio.create_task(self._pump_upstream(upstream))
                 try:
                     await self._pump_client(upstream, inbox, started)
@@ -614,13 +636,19 @@ class Bridge:
                         await asyncio.wait_for(pump, timeout=8)
                     except Exception:  # noqa: BLE001 — связь могла уже оборваться
                         pump.cancel()
-                    # Хвост очереди перевода добираем, но не бесконечно: последняя
-                    # фраза договаривается в наушник уже после нажатия «стоп».
+                    # Хвост очередей добираем, но не бесконечно: последняя фраза
+                    # договаривается в наушник уже после нажатия «стоп». Бюджет общий
+                    # на перевод и синтез — приложение ждёт прощания 30 секунд
+                    # (FAREWELL_TIMEOUT_MS), и в них должен уложиться и pump выше.
                     self.units.put_nowait(None)
-                    try:
-                        await asyncio.wait_for(worker, timeout=25)
-                    except (asyncio.TimeoutError, asyncio.CancelledError):
-                        worker.cancel()
+                    deadline = time.monotonic() + 20
+                    for task in (worker, speaker):
+                        try:
+                            await asyncio.wait_for(
+                                task, timeout=max(1.0, deadline - time.monotonic()),
+                            )
+                        except (asyncio.TimeoutError, asyncio.CancelledError):
+                            task.cancel()
         except LiveConfigError:
             raise
         except Exception as exc:  # noqa: BLE001 — показываем причину в приложении
@@ -655,6 +683,7 @@ class Bridge:
             "type": "session.update",
             "session": {
                 "audio_format": {"encoding": "pcm_s16le", "sample_rate": SAMPLE_RATE},
+                "target_streaming_delay_ms": _STREAMING_DELAY_MS,
             },
         }))
 

@@ -99,8 +99,10 @@ CATALOG = [
         "asr": [
             {"id": "voxtral-mini-latest", "tier": BUDGET, "per_min": 0.003,
              "price": "$0.003 / мин", "note": "Voxtral Mini Transcribe 2, 13 языков"},
-            {"id": "voxtral-small-latest", "tier": BALANCED, "per_min": 0.004,
-             "price": "$0.004 / мин", "note": "крупнее, понимает контекст"},
+            # voxtral-small-latest здесь был и его пришлось убрать: у Mistral эта модель
+            # живёт только в /chat/completions, а на /audio/transcriptions отвечает
+            # «400 Invalid model». В панели она честно предлагалась — и честно ломала
+            # распознавание, стоило её выбрать.
             {"id": "voxtral-mini-transcribe-realtime-2602", "tier": BALANCED, "per_min": 0.006,
              "price": "$0.006 / мин", "note": "потоковая, для живого перевода; язык определяет сама"},
         ],
@@ -191,6 +193,21 @@ def tts_cost_usd(base_url: str, model: str, chars: int | None) -> float | None:
 def realtime_asr_models(base_url: str) -> list[dict]:
     """Модели потокового распознавания провайдера — только они годятся для живого перевода."""
     return [m for m in for_base_url(base_url).get("asr") or [] if "realtime" in m["id"]]
+
+
+def file_asr_models(base_url: str) -> list[dict]:
+    """Модели, которыми можно распознать записанный файл — обратное к [realtime_asr_models].
+
+    Потоковые модели умеют только WebSocket: `/audio/transcriptions` отвечает им 404
+    (OpenAI) или 400 «only supports realtime transcription» (Mistral). В выпадашке
+    обычного распознавания их быть не должно.
+    """
+    return [m for m in for_base_url(base_url).get("asr") or [] if "realtime" not in m["id"]]
+
+
+def is_realtime_only(base_url: str, model: str) -> bool:
+    """Потоковая ли это модель — то есть заведомо непригодная для распознавания файла."""
+    return any(m["id"] == (model or "").strip() for m in realtime_asr_models(base_url))
 
 
 def has_realtime_asr(base_url: str) -> bool | None:

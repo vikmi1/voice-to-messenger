@@ -271,6 +271,17 @@ def api_transcribe():
             error=f"У провайдера «{asr_name}» не задана модель распознавания. "
                   "Впиши её в карточке провайдера на вкладке «Провайдеры».",
         ), 400
+    if catalog.is_realtime_only(prov.get("base_url"), model):
+        # Потоковая модель умеет только WebSocket: OpenAI отвечает на файл 404
+        # «Invalid URL», Mistral — 400 «only supports realtime transcription». Без
+        # этой проверки приложение показывало сырой ответ провайдера.
+        suggested = catalog.default_asr_model(prov.get("base_url"))
+        return jsonify(
+            error=f"Модель «{model}» — потоковая, она годится только для живого перевода, "
+                  f"а записанный файл ей распознать нечем. "
+                  + (f"Поставь «{suggested}» в карточке провайдера." if suggested else
+                     "Выбери обычную модель распознавания в карточке провайдера."),
+        ), 400
 
     file_bytes = audio.read()
     app.logger.info(

@@ -418,6 +418,14 @@ function realtimeAsr(baseUrl) {
   return (catalogFor(baseUrl).asr || []).filter(m => m.id.includes("realtime"));
 }
 
+/**
+ * Модели для распознавания записанного файла — обратное к [realtimeAsr]. Потоковые
+ * сюда не попадают: по HTTP они отвечают 404 или «only supports realtime».
+ */
+function fileAsr(baseUrl) {
+  return (catalogFor(baseUrl).asr || []).filter(m => !m.id.includes("realtime"));
+}
+
 /** Выпадашки трёх полей живого перевода — каждая по адресу своего провайдера. */
 function fillLiveModelLists() {
   fillList(document.getElementById("live_stt_models"),
@@ -640,9 +648,10 @@ function tierName(tier) { return CATALOG.tiers[tier] || tier; }
 
 /** Наполняет обе выпадашки карточки: подобранные модели + подтянутые кнопкой «Список». */
 function fillModelLists(card) {
-  const cat = catalogFor(card.querySelector(".p-base").value);
-  fillList(card.querySelector('datalist[data-role="llm"]'), cat.llm, LIVE_MODELS[card.dataset.key]);
-  fillList(card.querySelector('datalist[data-role="asr"]'), cat.asr, null);
+  const baseUrl = card.querySelector(".p-base").value;
+  fillList(card.querySelector('datalist[data-role="llm"]'),
+           catalogFor(baseUrl).llm, LIVE_MODELS[card.dataset.key]);
+  fillList(card.querySelector('datalist[data-role="asr"]'), fileAsr(baseUrl), null);
   refreshHints(card);
 }
 

@@ -267,7 +267,7 @@ private fun ProviderCard(
                 ModelField(
                     label = "Модель распознавания речи",
                     model = provider.asrModel,
-                    suggestions = catalog.asrFor(provider.baseUrl),
+                    suggestions = catalog.fileAsrFor(provider.baseUrl),
                     tierTitle = catalog::tierTitle,
                     // Живой список моделей провайдера сюда не годится: /models отдаёт
                     // всё вперемешку, а транскрипцию умеют единицы.

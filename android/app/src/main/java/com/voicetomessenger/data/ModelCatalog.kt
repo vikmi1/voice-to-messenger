@@ -51,6 +51,16 @@ data class ModelCatalog(
     fun realtimeAsrFor(baseUrl: String): List<CatalogModel> =
         asrFor(baseUrl).filter { "realtime" in it.id }
 
+    /**
+     * Модели для распознавания записанного файла — обратное к [realtimeAsrFor].
+     *
+     * Потоковые модели умеют только WebSocket: на `/audio/transcriptions` OpenAI
+     * отвечает 404, Mistral — 400 «only supports realtime transcription». Пока они
+     * были в общем списке, выбранная по ошибке модель ломала обычную диктовку.
+     */
+    fun fileAsrFor(baseUrl: String): List<CatalogModel> =
+        asrFor(baseUrl).filter { "realtime" !in it.id }
+
     /** Модели синтеза речи у провайдера с таким адресом API. */
     fun tts(baseUrl: String): List<CatalogModel> = entryFor(baseUrl)?.tts.orEmpty()
 

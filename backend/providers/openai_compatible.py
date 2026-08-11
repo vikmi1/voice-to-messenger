@@ -12,6 +12,37 @@ import requests
 
 from providers.base import LlmProvider
 
+#: Пары «адрес API + модель», которые отвергли temperature. Заполняется на лету
+#: первым же отказом и живёт до перезапуска процесса.
+_NO_TEMPERATURE: set[tuple[str, str]] = set()
+
+
+def _post_chat(base_url: str, headers: dict, payload: dict, temperature: float | None,
+               stream: bool = False, timeout: int = 120):
+    """POST в /chat/completions с оглядкой на то, принимает ли модель temperature.
+
+    Новые модели OpenAI (семейство gpt-5.6) поддерживают только значение по умолчанию
+    и отвечают `400 Unsupported value: 'temperature'` на любое другое — то есть весь
+    наш поток падал бы на них ошибкой. Заранее знать список неоткуда: он растёт без
+    нас, а в панели модель вписывается руками. Поэтому узнаём из первого же отказа —
+    повторяем запрос без параметра и запоминаем модель, чтобы дальше не платить
+    лишним заходом.
+    """
+    url = f"{base_url}/chat/completions"
+    key = (base_url, payload.get("model") or "")
+    send = temperature is not None and key not in _NO_TEMPERATURE
+    payload.pop("temperature", None)
+    if send:
+        payload["temperature"] = temperature
+
+    resp = requests.post(url, headers=headers, json=payload, stream=stream, timeout=timeout)
+    if send and resp.status_code == 400 and "temperature" in resp.text.lower():
+        _NO_TEMPERATURE.add(key)
+        resp.close()
+        payload.pop("temperature", None)
+        resp = requests.post(url, headers=headers, json=payload, stream=stream, timeout=timeout)
+    return resp
+
 
 class OpenAICompatibleProvider(LlmProvider):
     def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.3):
@@ -26,7 +57,6 @@ class OpenAICompatibleProvider(LlmProvider):
             raise RuntimeError("Не задан API-ключ активного провайдера (заполни в админ-панели).")
 
         self.last_usage = {}
-        url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -34,7 +64,6 @@ class OpenAICompatibleProvider(LlmProvider):
         payload = {
             "model": self.model,
             "stream": True,
-            "temperature": self.temperature,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -47,7 +76,8 @@ class OpenAICompatibleProvider(LlmProvider):
             # разбор ниже подхватит его, если он есть.
             payload["stream_options"] = {"include_usage": True}
 
-        with requests.post(url, headers=headers, json=payload, stream=True, timeout=120) as resp:
+        with _post_chat(self.base_url, headers, payload, self.temperature,
+                        stream=True, timeout=120) as resp:
             if resp.status_code >= 400:
                 raise RuntimeError(f"{resp.status_code}: {resp.text[:300]}")
             for raw in resp.iter_lines(decode_unicode=True):
@@ -96,19 +126,17 @@ def complete(base_url: str, api_key: str, model: str, system: str, user: str,
     if not api_key:
         raise RuntimeError("Не задан API-ключ провайдера.")
 
-    url = f"{(base_url or '').rstrip('/')}/chat/completions"
     payload = {
         "model": model,
-        "temperature": temperature,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
-    resp = requests.post(
-        url,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json=payload, timeout=timeout,
+    resp = _post_chat(
+        (base_url or "").rstrip("/"),
+        {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        payload, temperature, timeout=timeout,
     )
     if resp.status_code >= 400:
         raise RuntimeError(f"{resp.status_code}: {resp.text[:300]}")

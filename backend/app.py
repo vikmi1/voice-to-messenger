@@ -23,6 +23,7 @@ import functools
 import json
 import os
 import secrets
+import time
 import uuid
 
 from dotenv import load_dotenv
@@ -222,8 +223,19 @@ def api_process():
 @app.get("/api/usage/<usage_id>")
 @require_token
 def api_usage(usage_id: str):
-    """Сколько стоил конкретный запрос — для строки «потрачено кредитов» в приложении."""
+    """Сколько стоил конкретный запрос — для строки «потрачено кредитов» в приложении.
+
+    Немного ждём появления строки. Id уходит приложению заголовком, до первого куска
+    текста, а в журнал строка попадает только когда генерация закончилась, — то есть
+    спросить успевают раньше, чем есть что отвечать. Мгновенный 404 приложение
+    принимало за «бесплатно» и больше не переспрашивало: расход терялся примерно
+    в половине запросов.
+    """
     row = usage_store.get(usage_id)
+    deadline = time.monotonic() + 3.0
+    while not row and time.monotonic() < deadline:
+        time.sleep(0.1)
+        row = usage_store.get(usage_id)
     if not row:
         return jsonify(error="unknown usage id"), 404
     return jsonify(

@@ -416,10 +416,15 @@ class VoicePipeline(
 
         _state.value = CaptureState.Processing(raw, "")
         val builder = StringBuilder()
+        // Заголовок с id приходит до первого куска текста, а строку журнала сервер пишет
+        // только когда генерация закончилась. Поэтому id запоминаем сразу, а стоимость
+        // спрашиваем в finally: раньше спрашивали прямо по заголовку и получали 404 —
+        // расход молча терялся, потому что id к тому моменту уже помечен посчитанным.
+        // Именно finally, а не хвост try: если генерацию прервут на середине, токены
+        // всё равно потрачены и должны попасть в счётчик.
+        var usageId: String? = null
         try {
-            // Считаем расход сразу по заголовку, не дожидаясь конца потока: если генерацию
-            // прервут на середине, токены всё равно потрачены и должны попасть в счётчик.
-            processor.process(request, ::countUsage).collect { chunk ->
+            processor.process(request) { usageId = it }.collect { chunk ->
                 builder.append(chunk)
                 _state.value = CaptureState.Processing(raw, builder.toString())
             }
@@ -428,6 +433,8 @@ class VoicePipeline(
         } catch (e: Exception) {
             _state.value = CaptureState.Failed(e.message ?: context.localizedString(R.string.err_process))
             return
+        } finally {
+            countUsage(usageId)
         }
 
         val result = builder.toString().trim()

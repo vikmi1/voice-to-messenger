@@ -58,6 +58,42 @@ wird im selben Protokoll mit drei Zeilen pro Sitzung erfasst: `live_stt`, `live_
 Einschränkung: Die Übersetzung läuft nur, solange der Bildschirm geöffnet ist. Im Hintergrund entzieht das System
 der App das Mikrofon, deshalb bleibt der Bildschirm während der Sitzung an.
 
+## Lokal starten
+
+### 1. Backend
+
+Benötigt werden Python 3.11+ und ein API-Schlüssel mindestens eines LLM-Anbieters (OpenAI, Mistral, Anthropic oder ein beliebiger OpenAI-kompatibler).
+
+```bash
+git clone https://github.com/vikmi1/voice-to-messenger.git
+cd voice-to-messenger/backend
+python -m venv venv
+venv\Scripts\activate            # Windows; unter Linux/macOS: source venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env           # unter Linux/macOS: cp
+python app.py
+```
+
+In `.env` `ADMIN_PASS` und `SECRET_KEY` setzen; Schlüssel der Anbieter können ebenfalls dort stehen (`OPENAI_API_KEY`, `MISTRAL_API_KEY`, `ANTHROPIC_API_KEY`) oder später im Admin-Panel eingetragen werden.
+
+Der Server startet unter `http://localhost:8000`. `http://localhost:8000/admin` öffnen, mit `ADMIN_USER` / `ADMIN_PASS` aus `.env` anmelden, auf dem Reiter **Провайдеры** (Anbieter) den aktiven Anbieter und die Modelle wählen und auf dem Reiter **Приложение** (App) den API-Token kopieren – die Android-App braucht ihn.
+
+### 2. Android-App
+
+1. [Android Studio](https://developer.android.com/studio) installieren – es bringt Android SDK und Gradle mit.
+2. `File → Open` → den Ordner `android/` wählen (nicht das Wurzelverzeichnis des Repositorys) und den Gradle Sync abwarten.
+   `gradle-wrapper.jar` liegt nicht im Repository, daher muss der erste Sync in Android Studio laufen.
+3. Ein Telefon mit aktiviertem USB-Debugging anschließen (oder einen Emulator starten) und ▶ drücken.
+4. In der App die **Einstellungen** öffnen und ausfüllen:
+   - **Backend-Adresse** – `http://10.0.2.2:8000` für einen Emulator mit lokalem Backend oder die Adresse des eigenen Servers;
+   - **API-Token** – vom Reiter **Приложение** (App) im Admin-Panel (das Panel ist auf Russisch).
+
+   Die Schaltfläche **Verbindung prüfen** ruft `/api/options` auf und lädt die aktuellen Stile und Sprachen.
+
+Unit-Tests der App (lokale Textbereinigung, Spiellogik): `cd android && ./gradlew test`.
+
+Weitere Details (auf Russisch): [backend/README.md](backend/README.md), [android/README.md](android/README.md), Deployment auf dem Server – [deploy/README.md](deploy/README.md).
+
 ## Architektur
 
 ```

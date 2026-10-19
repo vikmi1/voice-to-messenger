@@ -58,6 +58,42 @@ is written to the same log as three lines per session: `live_stt`, `live_transla
 Limitation: translation runs only while the screen is open. In the background the system takes the microphone
 away from the app, so the screen stays on during a session.
 
+## Running locally
+
+### 1. Backend
+
+Requires Python 3.11+ and an API key of at least one LLM provider (OpenAI, Mistral, Anthropic or any OpenAI-compatible one).
+
+```bash
+git clone https://github.com/vikmi1/voice-to-messenger.git
+cd voice-to-messenger/backend
+python -m venv venv
+venv\Scripts\activate            # Windows; on Linux/macOS: source venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env           # cp on Linux/macOS
+python app.py
+```
+
+In `.env` set `ADMIN_PASS` and `SECRET_KEY`; provider keys can go there too (`OPENAI_API_KEY`, `MISTRAL_API_KEY`, `ANTHROPIC_API_KEY`) or be entered later in the admin panel.
+
+The server starts on `http://localhost:8000`. Open `http://localhost:8000/admin`, log in with `ADMIN_USER` / `ADMIN_PASS` from `.env`, choose the active provider and models on the **Провайдеры** (Providers) tab, and copy the API token from the **Приложение** (App) tab — the Android app needs it.
+
+### 2. Android app
+
+1. Install [Android Studio](https://developer.android.com/studio) — it installs the Android SDK and Gradle.
+2. `File → Open` → select the `android/` folder (not the repository root) and wait for Gradle Sync.
+   `gradle-wrapper.jar` is not stored in the repository, so the first sync must happen in Android Studio.
+3. Connect a phone with USB debugging enabled (or start an emulator) and press ▶.
+4. In the app open **Settings** and fill in:
+   - **Backend address** — `http://10.0.2.2:8000` for an emulator with a local backend, or your server's address;
+   - **API token** — from the **Приложение** (App) tab of the admin panel (the panel is in Russian).
+
+   The **Check connection** button calls `/api/options` and loads the current styles and languages.
+
+Unit tests of the app (local text cleanup, game logic): `cd android && ./gradlew test`.
+
+More details (in Russian): [backend/README.md](backend/README.md), [android/README.md](android/README.md), server deployment — [deploy/README.md](deploy/README.md).
+
 ## Architecture
 
 ```

@@ -58,6 +58,42 @@
 Ограничение: перевод живёт, пока открыт экран. В фоне система забирает микрофон у
 приложения, поэтому экран на время сессии не гаснет.
 
+## Запуск локально
+
+### 1. Бэкенд
+
+Нужны Python 3.11+ и API-ключ хотя бы одного LLM-провайдера (OpenAI, Mistral, Anthropic или любой OpenAI-совместимый).
+
+```bash
+git clone https://github.com/vikmi1/voice-to-messenger.git
+cd voice-to-messenger/backend
+python -m venv venv
+venv\Scripts\activate            # Windows; на Linux/macOS: source venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env           # cp на Linux/macOS
+python app.py
+```
+
+В `.env` впишите `ADMIN_PASS` и `SECRET_KEY`; ключи провайдеров можно положить туда же (`OPENAI_API_KEY`, `MISTRAL_API_KEY`, `ANTHROPIC_API_KEY`) или ввести позже в админ-панели.
+
+Сервер поднимется на `http://localhost:8000`. Откройте `http://localhost:8000/admin`, войдите с `ADMIN_USER` / `ADMIN_PASS` из `.env`, на вкладке **Провайдеры** выберите активного провайдера и модели, а на вкладке **Приложение** скопируйте API-токен — он нужен Android-приложению.
+
+### 2. Android-приложение
+
+1. Установите [Android Studio](https://developer.android.com/studio) — он сам поставит Android SDK и Gradle.
+2. `File → Open` → выберите папку `android/` (не корень репозитория) и дождитесь Gradle Sync.
+   `gradle-wrapper.jar` не хранится в репозитории, поэтому первый Sync должен пройти в Android Studio.
+3. Подключите телефон с включённой отладкой по USB (или запустите эмулятор) и нажмите ▶.
+4. В приложении откройте **Настройки** и заполните:
+   - **Адрес бэкенда** — `http://10.0.2.2:8000` для эмулятора с локальным бэкендом или адрес вашего сервера;
+   - **API-токен** — с вкладки **Приложение** админ-панели.
+
+   Кнопка **Проверить связь** вызывает `/api/options` и подтягивает актуальные стили и языки.
+
+Юнит-тесты приложения (локальная чистка текста, логика игр): `cd android && ./gradlew test`.
+
+Подробнее: [backend/README.md](backend/README.md), [android/README.md](android/README.md), деплой на сервер — [deploy/README.md](deploy/README.md).
+
 ## Архитектура
 
 ```
